@@ -113,6 +113,14 @@ async function removeDemoData(db: SQLiteDatabase) {
   );
 }
 
+export async function deleteTicket(db: SQLiteDatabase, id: number) {
+  await db.runAsync('DELETE FROM tickets WHERE id = ?', id);
+}
+
+export async function deleteProject(db: SQLiteDatabase, id: number) {
+  await db.runAsync('DELETE FROM projects WHERE id = ?', id);
+}
+
 async function seedDatabase(db: SQLiteDatabase) {
   const now = new Date().toISOString();
   const projects = [

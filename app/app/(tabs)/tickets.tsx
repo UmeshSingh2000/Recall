@@ -1,9 +1,9 @@
 import { useSQLiteContext } from "expo-sqlite";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, Pressable, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, spacing } from "../../constants/theme";
+import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
 import {
   EmptyState,
   Screen,
@@ -26,11 +26,16 @@ export default function TicketsScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("all");
-  useEffect(() => {
+  const loadTickets = useCallback(() => {
     db.getAllAsync<Ticket>(
       "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC",
     ).then(setTickets);
   }, [db]);
+  useFocusEffect(
+    useCallback(() => {
+      loadTickets();
+    }, [loadTickets]),
+  );
   const shown = tickets.filter(
     (ticket) =>
       (filter === "all" || ticket.status === filter) &&
@@ -126,5 +131,5 @@ const styles = StyleSheet.create({
   },
   sortLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
   sortIcon: { color: colors.green, fontSize: 16 },
-  list: { paddingBottom: 36 },
+  list: { paddingBottom: tabBarInset },
 });

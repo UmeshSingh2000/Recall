@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useSQLiteContext } from "expo-sqlite";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -9,9 +9,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, radius, spacing } from "../../constants/theme";
+import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
 import { TicketCard, SectionHeading, StatusBadge } from "../../components/ui";
 import { greeting, relativeTime } from "../../lib/format";
 import type { Ticket } from "../../types";
@@ -20,11 +20,16 @@ export default function TabOneScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  useEffect(() => {
+  const loadTickets = useCallback(() => {
     db.getAllAsync<Ticket>(
       `SELECT t.*, p.name AS project_name, (SELECT description FROM work_logs WHERE ticket_id=t.id ORDER BY created_at DESC LIMIT 1) AS last_log FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC`,
     ).then(setTickets);
   }, [db]);
+  useFocusEffect(
+    useCallback(() => {
+      loadTickets();
+    }, [loadTickets]),
+  );
   const active = tickets.filter(
     (ticket) => ticket.status === "in_progress" || ticket.status === "review",
   ).length;
@@ -168,7 +173,7 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   scroll: { flex: 1, backgroundColor: colors.canvas },
-  content: { padding: spacing.lg, paddingBottom: 36 },
+  content: { padding: spacing.lg, paddingBottom: tabBarInset },
   greeting: {
     flexDirection: "row",
     justifyContent: "space-between",

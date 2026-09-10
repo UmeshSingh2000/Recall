@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../../constants/theme";
 import { PriorityBadge, StatusBadge } from "../../components/ui";
+import { deleteTicket } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
 import type { ProgressItem, Ticket, WorkLog } from "../../types";
 
@@ -66,6 +68,23 @@ export default function TicketDetailScreen() {
     await db.runAsync('UPDATE tickets SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?', status, status === 'done' ? now : null, now, ticket.id);
     setTicket({ ...ticket, status, completed_at: status === 'done' ? now : null });
   };
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete ticket?",
+      `This will permanently delete ${ticket.ticket_key} and all its progress, logs, and notes.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteTicket(db, ticket.id);
+            router.back();
+          },
+        },
+      ],
+    );
+  };
   return (
     <SafeAreaView style={styles.page} edges={["top", "left", "right"]}>
       <View style={styles.nav}>
@@ -73,17 +92,22 @@ export default function TicketDetailScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text style={styles.navTitle}>Ticket detail</Text>
-        <Pressable
-          onPress={() =>
-            router.push({
-              pathname: "/log-progress",
-              params: { ticketId: ticket.id },
-            })
-          }
-          style={styles.iconButton}
-        >
-          <Ionicons name="create-outline" size={21} color={colors.green} />
-        </Pressable>
+        <View style={styles.navActions}>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/log-progress",
+                params: { ticketId: ticket.id },
+              })
+            }
+            style={styles.iconButton}
+          >
+            <Ionicons name="create-outline" size={21} color={colors.green} />
+          </Pressable>
+          <Pressable onPress={confirmDelete} style={styles.iconButton}>
+            <Ionicons name="trash-outline" size={20} color={colors.red} />
+          </Pressable>
+        </View>
       </View>
       <ScrollView
         contentContainerStyle={styles.content}
@@ -188,6 +212,10 @@ export default function TicketDetailScreen() {
           </Pressable>
           {ticket.status !== 'done' ? <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/switch-work' as any, params: { ticketId: ticket.id } })}><Text style={styles.secondaryText}>Pause / switch</Text></Pressable> : null}
           {ticket.status !== 'done' ? <Pressable style={styles.doneButton} onPress={() => updateStatus('done')}><Ionicons name="checkmark" size={17} color={colors.green} /><Text style={styles.doneText}>Mark done</Text></Pressable> : <Pressable style={styles.secondaryButton} onPress={() => updateStatus('in_progress')}><Text style={styles.secondaryText}>Reopen ticket</Text></Pressable>}
+          <Pressable style={styles.deleteButton} onPress={confirmDelete}>
+            <Ionicons name="trash-outline" size={17} color={colors.red} />
+            <Text style={styles.deleteText}>Delete ticket</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -231,6 +259,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+  navActions: { flexDirection: "row", alignItems: "center" },
   iconButton: { padding: 7 },
   content: { padding: spacing.lg, paddingBottom: 45 },
   loading: {
@@ -361,4 +390,17 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.charcoal, fontWeight: '800' },
   doneButton: { borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
   doneText: { color: colors.green, fontWeight: '800' },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: colors.redSoft,
+    borderRadius: radius.md,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    backgroundColor: colors.redSoft,
+    marginTop: 4,
+  },
+  deleteText: { color: colors.red, fontWeight: '800' },
 });
