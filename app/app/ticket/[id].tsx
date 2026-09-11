@@ -4,6 +4,8 @@ import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +28,10 @@ export default function TicketDetailScreen() {
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [nextAction, setNextAction] = useState("");
+  const [myContext, setMyContext] = useState("");
+  const [whyImplementing, setWhyImplementing] = useState("");
+  const [howItWorks, setHowItWorks] = useState("");
+  const [importantDecisions, setImportantDecisions] = useState("");
   useEffect(() => {
     const ticketId = Number(id);
     Promise.all([
@@ -44,6 +50,10 @@ export default function TicketDetailScreen() {
     ]).then(([nextTicket, nextProgress, nextLogs]) => {
       setTicket(nextTicket);
       setNextAction(nextTicket?.next_action || "");
+      setMyContext(nextTicket?.my_context || "");
+      setWhyImplementing(nextTicket?.why_implementing || "");
+      setHowItWorks(nextTicket?.how_it_works || "");
+      setImportantDecisions(nextTicket?.important_decisions || "");
       setProgress(nextProgress);
       setLogs(nextLogs);
     });
@@ -62,6 +72,21 @@ export default function TicketDetailScreen() {
       ticket.id,
     );
     setTicket({ ...ticket, next_action: nextAction });
+  };
+  const saveContext = async (
+    field: "my_context" | "why_implementing" | "how_it_works" | "important_decisions",
+    value: string,
+  ) => {
+    const updatedAt = new Date().toISOString();
+    await db.runAsync(
+      `UPDATE tickets SET ${field} = ?, updated_at = ? WHERE id = ?`,
+      value,
+      updatedAt,
+      ticket.id,
+    );
+    setTicket((current) =>
+      current ? { ...current, [field]: value, updated_at: updatedAt } : current,
+    );
   };
   const updateStatus = async (status: Ticket['status']) => {
     const now = new Date().toISOString();
@@ -109,10 +134,15 @@ export default function TicketDetailScreen() {
           </Pressable>
         </View>
       </View>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.ticketHeader}>
           <Text style={styles.key}>{ticket.ticket_key}</Text>
           <Text style={styles.title}>{ticket.title}</Text>
@@ -143,15 +173,29 @@ export default function TicketDetailScreen() {
           </View>
         </Section>
         <Section title="My context">
-          <Field label="What is this feature?" value={ticket.my_context} />
-          <Field
-            label="Why am I implementing it?"
-            value={ticket.why_implementing}
+          <ContextField
+            label="What is this feature?"
+            value={myContext}
+            onChangeText={setMyContext}
+            onBlur={() => saveContext("my_context", myContext)}
           />
-          <Field label="How does it work?" value={ticket.how_it_works} />
-          <Field
+          <ContextField
+            label="Why am I implementing it?"
+            value={whyImplementing}
+            onChangeText={setWhyImplementing}
+            onBlur={() => saveContext("why_implementing", whyImplementing)}
+          />
+          <ContextField
+            label="How does it work?"
+            value={howItWorks}
+            onChangeText={setHowItWorks}
+            onBlur={() => saveContext("how_it_works", howItWorks)}
+          />
+          <ContextField
             label="Important decisions"
-            value={ticket.important_decisions}
+            value={importantDecisions}
+            onChangeText={setImportantDecisions}
+            onBlur={() => saveContext("important_decisions", importantDecisions)}
           />
         </Section>
         <Section title="Progress">
@@ -217,7 +261,8 @@ export default function TicketDetailScreen() {
             <Text style={styles.deleteText}>Delete ticket</Text>
           </Pressable>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -235,18 +280,35 @@ function Section({
     </View>
   );
 }
-function Field({ label, value }: { label: string; value: string }) {
+function ContextField({
+  label,
+  value,
+  onChangeText,
+  onBlur,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  onBlur: () => void;
+}) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>
-        {value || "Tap edit to add your context."}
-      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onBlur={onBlur}
+        placeholder="Tap to add your context."
+        placeholderTextColor={colors.muted}
+        style={styles.fieldInput}
+        multiline
+      />
     </View>
   );
 }
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.canvas },
+  keyboard: { flex: 1 },
   nav: {
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
@@ -316,11 +378,12 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   fieldLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  fieldValue: {
+  fieldInput: {
     color: colors.charcoal,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 5,
+    padding: 0,
   },
   progress: {
     backgroundColor: colors.surface,

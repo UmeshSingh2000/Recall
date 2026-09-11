@@ -121,6 +121,19 @@ export async function deleteProject(db: SQLiteDatabase, id: number) {
   await db.runAsync('DELETE FROM projects WHERE id = ?', id);
 }
 
+export async function deleteAllData(db: SQLiteDatabase) {
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM progress_items');
+    await db.runAsync('DELETE FROM work_logs');
+    await db.runAsync('DELETE FROM ticket_files');
+    await db.runAsync('DELETE FROM ticket_notes');
+    await db.runAsync('DELETE FROM work_sessions');
+    await db.runAsync('DELETE FROM tickets');
+    await db.runAsync('DELETE FROM projects');
+    await db.runAsync('DELETE FROM settings');
+  });
+}
+
 async function seedDatabase(db: SQLiteDatabase) {
   const now = new Date().toISOString();
   const projects = [

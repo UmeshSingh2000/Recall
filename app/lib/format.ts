@@ -11,8 +11,8 @@ export function relativeTime(iso?: string | null) {
   return `${days}d ago`;
 }
 
-export function greeting() {
-  const hour = new Date().getHours();
+export function greeting(date = new Date()) {
+  const hour = date.getHours();
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';

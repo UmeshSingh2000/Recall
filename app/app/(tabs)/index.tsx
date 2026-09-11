@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -12,7 +12,8 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
-import { TicketCard, SectionHeading, StatusBadge } from "../../components/ui";
+import { TicketDeck } from "../../components/TicketDeck";
+import { TicketCard, SectionHeading } from "../../components/ui";
 import { greeting, relativeTime } from "../../lib/format";
 import type { Ticket } from "../../types";
 
@@ -20,6 +21,12 @@ export default function TabOneScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [now, setNow] = useState(() => new Date());
+  const [deckIndex, setDeckIndex] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
   const loadTickets = useCallback(() => {
     db.getAllAsync<Ticket>(
       `SELECT t.*, p.name AS project_name, (SELECT description FROM work_logs WHERE ticket_id=t.id ORDER BY created_at DESC LIMIT 1) AS last_log FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC`,
@@ -37,8 +44,20 @@ export default function TabOneScreen() {
     (ticket) => ticket.status === "paused" || ticket.status === "blocked",
   ).length;
   const done = tickets.filter((ticket) => ticket.status === "done").length;
-  const current =
-    tickets.find((ticket) => ticket.status === "in_progress") || tickets[0];
+  const openTickets = tickets.filter((ticket) => ticket.status !== "done");
+  const current = openTickets[deckIndex];
+  useEffect(() => {
+    if (deckIndex >= openTickets.length && openTickets.length > 0) {
+      setDeckIndex(openTickets.length - 1);
+    }
+  }, [deckIndex, openTickets.length]);
+  const dateLabel = now
+    .toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    })
+    .toUpperCase();
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScrollView
@@ -48,8 +67,8 @@ export default function TabOneScreen() {
     >
       <View style={styles.greeting}>
         <View>
-          <Text style={styles.eyebrow}>THURSDAY, SEP 10</Text>
-          <Text style={styles.heading}>{greeting()}</Text>
+          <Text style={styles.eyebrow}>{dateLabel}</Text>
+          <Text style={styles.heading}>{greeting(now)}</Text>
           <Text style={styles.subheading}>
             Let’s pick up where you left off.
           </Text>
@@ -72,44 +91,19 @@ export default function TabOneScreen() {
           </View>
         ))}
       </View>
-      {current ? (
+      {openTickets.length ? (
         <>
-          <SectionHeading title="Currently working on" action="View all" />
-          <Pressable
-            onPress={() => router.push(`/ticket/${current.id}`)}
-            style={styles.currentCard}
-          >
-            <View style={styles.currentAccent} />
-            <View style={styles.currentMain}>
-              <View style={styles.currentTop}>
-                <Text style={styles.currentKey}>{current.ticket_key}</Text>
-                <StatusBadge status={current.status} />
-              </View>
-              <Text style={styles.currentTitle}>{current.title}</Text>
-              <Text style={styles.currentProject}>{current.project_name}</Text>
-              <View style={styles.lastSession}>
-                <Ionicons name="time-outline" size={15} color={colors.muted} />
-                <Text style={styles.lastSessionText}>
-                  Last worked {relativeTime(current.updated_at)}
-                </Text>
-              </View>
-              <View style={styles.nextAction}>
-                <Text style={styles.nextLabel}>NEXT</Text>
-                <Text style={styles.nextValue} numberOfLines={2}>
-                  {current.next_action}
-                </Text>
-              </View>
-              <View style={styles.continue}>
-                <Ionicons name="play" size={14} color="#fff" />
-                <Text style={styles.continueText}>Continue working</Text>
-              </View>
-            </View>
-          </Pressable>
+          <SectionHeading title="Currently working on" action={`${openTickets.length} open`} />
+          <TicketDeck
+            tickets={openTickets}
+            deckIndex={deckIndex}
+            onDeckIndexChange={setDeckIndex}
+          />
         </>
       ) : null}
       <SectionHeading title="Active tickets" action={`${active} total`} />
       <FlatList
-        data={tickets.filter((ticket) => ticket.status !== "done").slice(0, 4)}
+        data={openTickets.slice(0, 4)}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <TicketCard
@@ -209,63 +203,6 @@ const styles = StyleSheet.create({
   },
   statLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   statValue: { fontSize: 25, fontWeight: "800", marginTop: 6 },
-  currentCard: {
-    backgroundColor: colors.charcoal,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-    marginBottom: 20,
-  },
-  currentAccent: { height: 4, backgroundColor: colors.green },
-  currentMain: { padding: 18 },
-  currentTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  currentKey: {
-    color: "#9BE3C6",
-    fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 0.6,
-  },
-  currentTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "800",
-    marginTop: 11,
-  },
-  currentProject: { color: "#AAB9BE", fontSize: 13, marginTop: 4 },
-  lastSession: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 17,
-  },
-  lastSessionText: { color: "#AAB9BE", fontSize: 12 },
-  nextAction: {
-    borderTopColor: "#405059",
-    borderTopWidth: 1,
-    marginTop: 17,
-    paddingTop: 13,
-  },
-  nextLabel: {
-    color: "#88D9B8",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  nextValue: { color: "#fff", fontSize: 13, fontWeight: "600", marginTop: 5 },
-  continue: {
-    backgroundColor: colors.green,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    paddingVertical: 12,
-    marginTop: 18,
-  },
-  continueText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   muted: { color: colors.muted, paddingBottom: 20 },
   recent: {
     backgroundColor: colors.surface,

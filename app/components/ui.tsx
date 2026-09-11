@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../constants/theme";
 import { titleCase } from "../lib/format";
@@ -27,7 +27,9 @@ export function Screen({
         ) : null}
         {right}
       </View>
-      {children}
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {children}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -180,6 +182,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     paddingHorizontal: spacing.lg,
   },
+  keyboard: { flex: 1 },
   header: {
     paddingTop: 12,
     paddingBottom: 18,
