@@ -24,7 +24,7 @@ function broadcastClipboard(text) {
       client.send(message);
     }
   });
-
+  console.log("sending push notification")
   sendPushNotifications(text, receivedAt).catch((error) => {
     console.error("Failed to send push notifications:", error.message);
   });
@@ -42,6 +42,8 @@ async function sendPushNotifications(text, receivedAt) {
     data: { type: "clipboard", text, receivedAt },
   }));
 
+  console.log("message sending through firebase", message)
+
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
     headers: {
@@ -51,6 +53,9 @@ async function sendPushNotifications(text, receivedAt) {
     },
     body: JSON.stringify(messages),
   });
+  const data = await response.json()
+
+  console.log("response from the firebase push notification api", data)
 
   if (!response.ok) {
     throw new Error(`Expo Push Service responded with ${response.status}`);
@@ -73,11 +78,11 @@ app.get('/', (req, res) => {
 
 app.post("/api/push-token", (req, res) => {
   const { token } = req.body;
-
+  console.log("token recieve from app", token)
   if (typeof token !== "string" || !token.startsWith("ExpoPushToken[")) {
     return res.status(400).json({ error: "The request body must include a valid Expo push token." });
   }
-
+  console.log("adding token", token)
   pushTokens.add(token);
   return res.status(204).send();
 });
