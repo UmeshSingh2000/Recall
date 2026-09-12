@@ -53,18 +53,24 @@ async function sendPushNotifications(text, receivedAt) {
     },
     body: JSON.stringify(messages),
   });
-  const data = await response.json()
+  const result = await response.json();
 
-  console.log("response from the firebase push notification api", data)
+  console.log("response from the Expo push notification API", JSON.stringify(result));
 
   if (!response.ok) {
-    throw new Error(`Expo Push Service responded with ${response.status}`);
+    throw new Error(`Expo Push Service responded with ${response.status}: ${JSON.stringify(result)}`);
   }
 
-  const result = await response.json();
   result.data?.forEach((ticket, index) => {
     if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
       pushTokens.delete(messages[index].to);
+    }
+    if (ticket.status === "error") {
+      console.error("Expo push ticket error", {
+        token: messages[index].to,
+        message: ticket.message,
+        details: ticket.details,
+      });
     }
   });
 }
