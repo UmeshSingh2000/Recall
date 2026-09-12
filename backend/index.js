@@ -79,7 +79,7 @@ app.get('/', (req, res) => {
 app.post("/api/push-token", (req, res) => {
   const { token } = req.body;
   console.log("token recieve from app", token)
-  if (typeof token !== "string" || !token.startsWith("ExpoPushToken[")) {
+  if (typeof token !== "string" || !token.startsWith("ExponentPushToken[")) {
     return res.status(400).json({ error: "The request body must include a valid Expo push token." });
   }
   console.log("adding token", token)
