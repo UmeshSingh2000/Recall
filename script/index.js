@@ -29,12 +29,8 @@ hotkey.stdout.on("data", async (data) => {
 
     if (message === "HOTKEY") {
         const text = await clipboard.read();
-
-        console.log("Clipboard:");
-        console.log(text);
-
         try {
-            const response = await fetch("http://localhost:3000/api/clipboard", {
+            const response = await fetch("https://recall-en47.onrender.com/api/clipboard", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

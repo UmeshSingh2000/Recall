@@ -43,25 +43,25 @@ public class HotKey {
 }
 "@
 
-# Ctrl + Shift + C
-$MOD_CONTROL = 0x0002
-$MOD_SHIFT   = 0x0004
+# Ctrl + Alt + Space
+$MOD_CONTROL  = 0x0002
+$MOD_ALT      = 0x0001
 $MOD_NOREPEAT = 0x4000
 
-# C = 0x43
-$VK_C = 0x43
+# Space = 0x20
+$VK_SPACE = 0x20
 
 $id = 1
 
 $result = [HotKey]::RegisterHotKey(
     [IntPtr]::Zero,
     $id,
-    $MOD_CONTROL -bor $MOD_SHIFT -bor $MOD_NOREPEAT,
-    $VK_C
+    $MOD_CONTROL -bor $MOD_ALT -bor $MOD_NOREPEAT,
+    $VK_SPACE
 )
 
 if (-not $result) {
-    Write-Error "Failed to register Ctrl+Shift+C"
+    Write-Error "Failed to register Ctrl+Alt+Space"
     exit 1
 }
 

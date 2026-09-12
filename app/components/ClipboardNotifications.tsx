@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Constants from "expo-constants";
+import * as Notifications from "expo-notifications";
+import { useEffect, useRef, useState } from "react";
+import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing } from "../constants/theme";
 
 type ClipboardEvent = {
@@ -10,15 +12,122 @@ type ClipboardEvent = {
   receivedAt: string;
 };
 
-const backendUrl =
-  process.env.EXPO_PUBLIC_BACKEND_URL ??
-  (Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://localhost:3000");
-const webSocketUrl = backendUrl.replace(/^http/, "ws");
+const backendUrl = "https://recall-en47.onrender.com"
+const webSocketUrl = backendUrl.replace(/^https/, "wss");
+const clipboardChannelId = "clipboard-v2";
+
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: AppState.currentState !== "active",
+      shouldSetBadge: true,
+      shouldShowBanner: AppState.currentState !== "active",
+      shouldShowList: AppState.currentState !== "active",
+    }),
+  });
+}
 
 export function ClipboardNotifications() {
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const pushNotificationsEnabled = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    let disposed = false;
+
+    const prepareNotifications = async () => {
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync(clipboardChannelId, {
+          name: "Clipboard",
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: "clipboard.wav",
+          vibrationPattern: [0, 250, 250, 250],
+        });
+      }
+
+      const currentPermissions = await Notifications.getPermissionsAsync();
+      let status = currentPermissions.status;
+      if (status !== "granted") {
+        const requestedPermissions = await Notifications.requestPermissionsAsync();
+        status = requestedPermissions.status;
+      }
+
+      if (status !== "granted") {
+        return;
+      }
+
+      if (Platform.OS === "android" && !Constants.expoConfig?.android?.googleServicesFile) {
+        return;
+      }
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+      if (!projectId) {
+        throw new Error("Expo project ID is missing");
+      }
+
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      await fetch(`${backendUrl}/api/push-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      pushNotificationsEnabled.current = true;
+    };
+
+    prepareNotifications().catch((error) => {
+      console.warn("Unable to enable clipboard notifications", error);
+    });
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const addNotification = (message: ClipboardEvent) => {
+    setNotifications((current) => {
+      if (current.some((item) => item.receivedAt === message.receivedAt)) {
+        return current;
+      }
+      return [message, ...current].slice(0, 10);
+    });
+    setIsOpen(true);
+  };
+
+  const showBackgroundFallback = async (message: ClipboardEvent) => {
+    if (Platform.OS === "web" || AppState.currentState === "active" || pushNotificationsEnabled.current) {
+      return;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "New clipboard text",
+        body: message.text.length > 180 ? `${message.text.slice(0, 177)}...` : message.text,
+        data: message,
+        sound: "clipboard.wav",
+      },
+      trigger: Platform.OS === "android" ? { channelId: clipboardChannelId } : null,
+    });
+  };
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data;
+      if (
+        data?.type === "clipboard" &&
+        typeof data.text === "string" &&
+        typeof data.receivedAt === "string"
+      ) {
+        addNotification({ type: "clipboard", text: data.text, receivedAt: data.receivedAt });
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -28,7 +137,6 @@ export function ClipboardNotifications() {
     const connect = () => {
       if (disposed) return;
 
-      console.log(`Connecting to clipboard WebSocket at ${webSocketUrl}`);
       socket = new WebSocket(webSocketUrl);
       socket.onmessage = (event) => {
         try {
@@ -37,8 +145,10 @@ export function ClipboardNotifications() {
             return;
           }
 
-          setNotifications((current) => [message, ...current].slice(0, 10));
-          setIsOpen(true);
+          addNotification(message);
+          showBackgroundFallback(message).catch((error) => {
+            console.warn("Unable to show background clipboard notification", error);
+          });
         } catch {
           // Ignore malformed messages from the socket.
         }
@@ -48,7 +158,6 @@ export function ClipboardNotifications() {
         socket?.close();
       };
       socket.onclose = (event) => {
-        console.log(`Clipboard WebSocket closed (${event.code}): ${event.reason || "no reason"}`);
         if (!disposed) {
           retryTimer = setTimeout(connect, 3000);
         }
