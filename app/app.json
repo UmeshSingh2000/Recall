@@ -43,8 +43,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "19d52e35-d56e-44c4-ae7f-8f8c63a83dba"
+        "projectId": "376039da-5f94-4b16-bf6b-c5ae81d37f95"
       }
-    }
+    },
+    "owner": "umessh"
   }
 }
