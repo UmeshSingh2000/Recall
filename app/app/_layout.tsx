@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors, spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
+import { ClipboardNotifications } from "../components/ClipboardNotifications";
 
 export default function RootLayout() {
   return (
@@ -58,7 +59,12 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      <ClipboardNotifications />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
