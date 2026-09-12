@@ -42,7 +42,7 @@ async function sendPushNotifications(text, receivedAt) {
     data: { type: "clipboard", text, receivedAt },
   }));
 
-  console.log("message sending through firebase", message)
+  console.log("message sending through firebase", messages)
 
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
