@@ -58,6 +58,7 @@ export default function TicketsScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.filters}
+        contentContainerStyle={styles.filterContent}
       >
         {filters.map((item) => (
           <Pressable
@@ -66,6 +67,7 @@ export default function TicketsScreen() {
             style={[styles.chip, filter === item.value && styles.chipActive]}
           >
             <Text
+              numberOfLines={1}
               style={[
                 styles.chipText,
                 filter === item.value && styles.chipTextActive,
@@ -107,13 +109,18 @@ export default function TicketsScreen() {
 }
 const styles = StyleSheet.create({
   addButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
-  filters: { flexGrow: 0, marginBottom: 12 },
+  filters: { height: 40, flexGrow: 0, marginBottom: 12 },
+  filterContent: { alignItems: "center" },
   chip: {
+    height: 38,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
     borderColor: colors.line,
     borderWidth: 1,
     borderRadius: radius.pill,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 0,
     marginRight: 7,
     backgroundColor: colors.surface,
   },
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.charcoal,
     borderColor: colors.charcoal,
   },
-  chipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  chipText: { color: colors.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
   chipTextActive: { color: "#fff" },
   sort: {
     flexDirection: "row",

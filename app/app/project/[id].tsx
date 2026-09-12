@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TicketCard } from '../../components/ui';
+import { ConfirmDialog, TicketCard } from '../../components/ui';
 import { colors, radius, spacing } from '../../constants/theme';
 import { deleteProject } from '../../lib/database';
 import type { Project, Ticket } from '../../types';
@@ -15,6 +15,7 @@ export default function ProjectDetail() {
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   useEffect(() => {
     db.getFirstAsync<Project>('SELECT * FROM projects WHERE id = ?', Number(id)).then(setProject);
@@ -26,24 +27,14 @@ export default function ProjectDetail() {
 
   const confirmDelete = () => {
     if (!project) return;
-    const ticketCount = tickets.length;
-    Alert.alert(
-      'Delete project?',
-      ticketCount
-        ? `This will permanently delete "${project.name}" and all ${ticketCount} ticket${ticketCount === 1 ? '' : 's'} in it.`
-        : `This will permanently delete "${project.name}".`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteProject(db, project.id);
-            router.back();
-          },
-        },
-      ],
-    );
+    setDeleteDialogVisible(true);
+  };
+  const ticketCount = tickets.length;
+  const handleDelete = async () => {
+    if (!project) return;
+    setDeleteDialogVisible(false);
+    await deleteProject(db, project.id);
+    router.back();
   };
 
   if (!project) {
@@ -83,6 +74,15 @@ export default function ProjectDetail() {
           <Text style={s.deleteText}>Delete project</Text>
         </Pressable>
       </ScrollView>
+      <ConfirmDialog
+        visible={deleteDialogVisible}
+        title="Delete project?"
+        message={tickets.length
+          ? `This will permanently delete "${project.name}" and all ${ticketCount} ticket${ticketCount === 1 ? '' : 's'} in it.`
+          : `This will permanently delete "${project.name}".`}
+        onCancel={() => setDeleteDialogVisible(false)}
+        onConfirm={handleDelete}
+      />
     </SafeAreaView>
   );
 }

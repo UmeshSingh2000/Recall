@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../constants/theme";
 import { titleCase } from "../lib/format";
@@ -176,6 +176,45 @@ export function SearchInput({
   );
 }
 
+export function ConfirmDialog({
+  visible,
+  title,
+  message,
+  confirmLabel = "Delete",
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={styles.dialogBackdrop}>
+        <View style={styles.dialog}>
+          <View style={styles.dialogIcon}>
+            <Ionicons name="warning-outline" size={23} color={colors.red} />
+          </View>
+          <Text style={styles.dialogTitle}>{title}</Text>
+          <Text style={styles.dialogMessage}>{message}</Text>
+          <View style={styles.dialogActions}>
+            <Pressable style={styles.dialogCancel} onPress={onCancel}>
+              <Text style={styles.dialogCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.dialogConfirm} onPress={onConfirm}>
+              <Ionicons name="trash-outline" size={17} color="#fff" />
+              <Text style={styles.dialogConfirmText}>{confirmLabel}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -183,6 +222,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   keyboard: { flex: 1 },
+  dialogBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    backgroundColor: "rgba(23, 33, 43, 0.48)",
+  },
+  dialog: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  dialogIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.redSoft,
+    marginBottom: 16,
+  },
+  dialogTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+  dialogMessage: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  dialogActions: { flexDirection: "row", gap: 9, marginTop: 24 },
+  dialogCancel: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingVertical: 13, alignItems: "center" },
+  dialogCancelText: { color: colors.charcoal, fontWeight: "800" },
+  dialogConfirm: { flex: 1, flexDirection: "row", gap: 7, backgroundColor: colors.red, borderRadius: radius.md, paddingVertical: 13, alignItems: "center", justifyContent: "center" },
+  dialogConfirmText: { color: "#fff", fontWeight: "800" },
   header: {
     paddingTop: 12,
     paddingBottom: 18,

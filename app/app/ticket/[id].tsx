@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../../constants/theme";
-import { PriorityBadge, StatusBadge } from "../../components/ui";
+import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { deleteTicket } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
 import type { ProgressItem, Ticket, WorkLog } from "../../types";
@@ -32,6 +31,7 @@ export default function TicketDetailScreen() {
   const [whyImplementing, setWhyImplementing] = useState("");
   const [howItWorks, setHowItWorks] = useState("");
   const [importantDecisions, setImportantDecisions] = useState("");
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   useEffect(() => {
     const ticketId = Number(id);
     Promise.all([
@@ -94,21 +94,12 @@ export default function TicketDetailScreen() {
     setTicket({ ...ticket, status, completed_at: status === 'done' ? now : null });
   };
   const confirmDelete = () => {
-    Alert.alert(
-      "Delete ticket?",
-      `This will permanently delete ${ticket.ticket_key} and all its progress, logs, and notes.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await deleteTicket(db, ticket.id);
-            router.back();
-          },
-        },
-      ],
-    );
+    setDeleteDialogVisible(true);
+  };
+  const handleDelete = async () => {
+    setDeleteDialogVisible(false);
+    await deleteTicket(db, ticket.id);
+    router.back();
   };
   return (
     <SafeAreaView style={styles.page} edges={["top", "left", "right"]}>
@@ -156,7 +147,11 @@ export default function TicketDetailScreen() {
           <Text style={styles.body}>{ticket.description}</Text>
         </Section>
         <Section title="Last session">
-          <View style={styles.session}>
+          <Pressable
+            disabled={!logs[0]}
+            onPress={() => logs[0] && router.push(`/log/${logs[0].id}`)}
+            style={({ pressed }) => [styles.session, pressed && styles.sessionPressed]}
+          >
             <Text style={styles.sessionKicker}>
               YOU PREVIOUSLY WORKED ON THIS{" "}
               {relativeTime(logs[0]?.created_at).toUpperCase()}
@@ -170,7 +165,7 @@ export default function TicketDetailScreen() {
                 Remaining: {logs[0].what_remains}
               </Text>
             ) : null}
-          </View>
+          </Pressable>
         </Section>
         <Section title="My context">
           <ContextField
@@ -231,7 +226,13 @@ export default function TicketDetailScreen() {
         <Section title="Work history">
           {logs.length ? (
             logs.map((log) => (
-              <View key={log.id} style={styles.log}>
+              <Pressable
+                key={log.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${titleCase(log.type)} work log`}
+                onPress={() => router.push(`/log/${log.id}`)}
+                style={({ pressed }) => [styles.log, pressed && styles.logPressed]}
+              >
                 <View style={styles.logDot} />
                 <View style={styles.logMain}>
                   <Text style={styles.logDate}>
@@ -242,7 +243,7 @@ export default function TicketDetailScreen() {
                     <Text style={styles.commit}>{log.commit_hash}</Text>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.muted}>
@@ -263,6 +264,13 @@ export default function TicketDetailScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <ConfirmDialog
+        visible={deleteDialogVisible}
+        title="Delete ticket?"
+        message={`This will permanently delete ${ticket.ticket_key} and all its progress, logs, and notes.`}
+        onCancel={() => setDeleteDialogVisible(false)}
+        onConfirm={handleDelete}
+      />
     </SafeAreaView>
   );
 }
@@ -364,6 +372,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 16,
   },
+  sessionPressed: { opacity: 0.86 },
   sessionKicker: {
     color: "#8BD7B8",
     fontSize: 10,
@@ -421,6 +430,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   log: { flexDirection: "row", gap: 12, marginBottom: 17 },
+  logPressed: { opacity: 0.7 },
   logDot: {
     width: 9,
     height: 9,
