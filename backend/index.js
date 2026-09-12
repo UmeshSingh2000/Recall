@@ -24,6 +24,13 @@ function broadcastClipboard(text) {
   });
 }
 
+app.get('/', (req, res) => {
+  return res.json({
+    message: "All System up and running!",
+    status: 200
+  })
+})
+
 app.post("/api/clipboard", (req, res) => {
   const { text } = req.body;
 
