@@ -6,26 +6,42 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const scriptPath = path.join(__dirname, "hotkey.ps1");
+function startHotkeyListener() {
+    if (process.platform === "win32") {
+        const scriptPath = path.join(__dirname, "hotkey.ps1");
 
-const hotkey = spawn(
-    "powershell.exe",
-    [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        scriptPath
-    ],
-    {
-        windowsHide: true
+        return spawn(
+            "powershell.exe",
+            [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                scriptPath
+            ],
+            {
+                windowsHide: true
+            }
+        );
     }
-);
+
+    if (process.platform === "linux") {
+        const scriptPath = path.join(__dirname, "hotkey.py");
+
+        return spawn("python3", [scriptPath], {
+            stdio: ["ignore", "pipe", "pipe"]
+        });
+    }
+
+    throw new Error(`Unsupported platform for hotkeys: ${process.platform}`);
+}
+
+const hotkey = startHotkeyListener();
 
 hotkey.stdout.on("data", async (data) => {
     const message = data.toString().trim();
 
-    console.log("PowerShell:", message);
+    console.log("Hotkey:", message);
 
     if (message === "HOTKEY") {
         const text = await clipboard.read();
@@ -56,3 +72,10 @@ hotkey.stderr.on("data", (data) => {
 hotkey.on("close", (code) => {
     console.log("Hotkey process exited:", code);
 });
+
+function shutdown() {
+    hotkey.kill("SIGTERM");
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
