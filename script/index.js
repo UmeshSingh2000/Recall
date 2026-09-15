@@ -1,10 +1,22 @@
 import { spawn } from "child_process";
 import clipboard from "clipboardy";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import crypto from "node:crypto";
+import os from "node:os";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
+const apiToken = process.env.RECALL_API_TOKEN;
+
+if (!apiToken) {
+    throw new Error("RECALL_API_TOKEN is not set");
+}
+
 
 function startHotkeyListener() {
     if (process.platform === "win32") {
@@ -46,10 +58,11 @@ hotkey.stdout.on("data", async (data) => {
     if (message === "HOTKEY") {
         const text = await clipboard.read();
         try {
-            const response = await fetch("https://recall-en47.onrender.com/api/clipboard", {
+            const response = await fetch("http://localhost:3000/api/clipboard", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiToken}`,
                 },
                 body: JSON.stringify({ text })
             });

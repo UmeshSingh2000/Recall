@@ -1,14 +1,41 @@
 import express from "express";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
+import crypto from "node:crypto";
+import dotenv from "dotenv";
+
+dotenv.config({ path: new URL(".env", import.meta.url) });
 
 const app = express();
 const port = process.env.PORT || 3000;
 const server = createServer(app);
 const webSocketServer = new WebSocketServer({ server });
 const pushTokens = new Set();
+const apiToken = process.env.RECALL_API_TOKEN;
+
+if (!apiToken) {
+  throw new Error("RECALL_API_TOKEN is not configured");
+}
 
 app.use(express.json());
+
+function requireApiToken(req, res, next) {
+  const authorization = req.get("Authorization") || "";
+  const suppliedToken = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : "";
+  const expected = Buffer.from(apiToken);
+  const supplied = Buffer.from(suppliedToken);
+
+  if (
+    expected.length !== supplied.length ||
+    !crypto.timingSafeEqual(expected, supplied)
+  ) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  next();
+}
 
 function broadcastClipboard(text) {
   const receivedAt = new Date().toISOString();
@@ -24,7 +51,6 @@ function broadcastClipboard(text) {
       client.send(message);
     }
   });
-  console.log("sending push notification")
   sendPushNotifications(text, receivedAt).catch((error) => {
     console.error("Failed to send push notifications:", error.message);
   });
@@ -42,7 +68,6 @@ async function sendPushNotifications(text, receivedAt) {
     data: { type: "clipboard", text, receivedAt },
   }));
 
-  console.log("message sending through firebase", messages)
 
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
@@ -55,7 +80,6 @@ async function sendPushNotifications(text, receivedAt) {
   });
   const result = await response.json();
 
-  console.log("response from the Expo push notification API", JSON.stringify(result));
 
   if (!response.ok) {
     throw new Error(`Expo Push Service responded with ${response.status}: ${JSON.stringify(result)}`);
@@ -93,7 +117,8 @@ app.post("/api/push-token", (req, res) => {
   return res.status(204).send();
 });
 
-app.post("/api/clipboard", (req, res) => {
+app.post("/api/clipboard", requireApiToken, (req, res) => {
+
   const { text } = req.body;
 
   if (typeof text !== "string") {
