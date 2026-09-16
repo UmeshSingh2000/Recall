@@ -1,8 +1,5 @@
 import { spawn } from "child_process";
 import clipboard from "clipboardy";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import crypto from "node:crypto";
-import os from "node:os";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -58,7 +55,7 @@ hotkey.stdout.on("data", async (data) => {
     if (message === "HOTKEY") {
         const text = await clipboard.read();
         try {
-            const response = await fetch("http://localhost:3000/api/clipboard", {
+            const response = await fetch("https://recall-en47.onrender.com/api/clipboard", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
