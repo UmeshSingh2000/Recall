@@ -3,18 +3,18 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, radius, spacing } from "../../constants/theme";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
+import { colors, radius, spacing } from "../../constants/theme";
 import { deleteTicket } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
 import type { ProgressItem, Ticket, WorkLog } from "../../types";
@@ -112,7 +112,7 @@ export default function TicketDetailScreen() {
           <Pressable
             onPress={() =>
               router.push({
-                pathname: "/log-progress",
+                pathname: "/edit-ticket",
                 params: { ticketId: ticket.id },
               })
             }

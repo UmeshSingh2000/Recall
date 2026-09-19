@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useState } from "react";
 import {
-  FlatList,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    FlatList,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
 import { TicketDeck } from "../../components/TicketDeck";
-import { TicketCard, SectionHeading } from "../../components/ui";
+import { SectionHeading, TicketCard } from "../../components/ui";
+import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
 import type { Ticket } from "../../types";
 
@@ -129,9 +129,15 @@ export default function TabOneScreen() {
             style={styles.recent}
             onPress={() => router.push(`/ticket/${item.id}`)}
           >
-            <View>
+            <View style={styles.recentMain}>
               <Text style={styles.recentKey}>{item.ticket_key}</Text>
-              <Text style={styles.recentTitle}>{item.title}</Text>
+              <Text
+                style={styles.recentTitle}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {item.title}
+              </Text>
             </View>
             <Text style={styles.recentTime}>
               {relativeTime(item.updated_at)}
@@ -215,9 +221,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 9,
   },
+  recentMain: { flex: 1, minWidth: 0 },
   recentKey: { color: colors.green, fontSize: 11, fontWeight: "800" },
   recentTitle: { color: colors.ink, fontWeight: "700", marginTop: 4 },
-  recentTime: { color: colors.muted, fontSize: 12 },
+  recentTime: {
+    color: colors.muted,
+    fontSize: 12,
+    flexShrink: 0,
+    marginLeft: spacing.md,
+  },
   quickRow: { flexDirection: "row", gap: 10, marginTop: 13 },
   quick: {
     backgroundColor: colors.greenSoft,

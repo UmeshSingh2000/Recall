@@ -3,9 +3,9 @@ import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ClipboardNotifications } from "../components/ClipboardNotifications";
 import { colors, spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
-import { ClipboardNotifications } from "../components/ClipboardNotifications";
 
 export default function RootLayout() {
   return (
@@ -17,6 +17,7 @@ export default function RootLayout() {
             <Stack.Screen name="ticket/[id]" options={{ presentation: "card" }} />
             <Stack.Screen name="log/[id]" options={{ presentation: "card" }} />
             <Stack.Screen name="log-progress" options={{ presentation: "modal" }} />
+            <Stack.Screen name="edit-ticket" options={{ presentation: "modal" }} />
             <Stack.Screen name="switch-work" options={{ presentation: "modal" }} />
             <Stack.Screen name="new-ticket" options={{ presentation: "modal" }} />
             <Stack.Screen name="new-project" options={{ presentation: "modal" }} />

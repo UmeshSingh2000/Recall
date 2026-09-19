@@ -28,6 +28,7 @@ const clipboardChannelId = "clipboard-v2";
 
 const BELL_SIZE = 44;
 const INITIAL_TOP = 52;
+const HORIZONTAL_INSET = spacing.lg;
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
@@ -43,6 +44,7 @@ if (Platform.OS !== "web") {
 export function ClipboardNotifications() {
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
 
   const { width: screenWidth, height: screenHeight } =
     Dimensions.get("window");
@@ -61,13 +63,15 @@ export function ClipboardNotifications() {
 
   const isDraggingRef = useRef(false);
 
-  const copiedId = useRef<string | null>(null);
   const pushNotificationsEnabled = useRef(false);
 
   const setPosition = (x: number, y: number) => {
     const boundedX = Math.max(
-      0,
-      Math.min(x, screenWidth - BELL_SIZE),
+      HORIZONTAL_INSET,
+      Math.min(
+        x,
+        screenWidth - HORIZONTAL_INSET - BELL_SIZE,
+      ),
     );
 
     const boundedY = Math.max(
@@ -132,14 +136,15 @@ export function ClipboardNotifications() {
       onPanResponderRelease: () => {
         const currentX = bellPositionRef.current.x;
 
-        const maxX = screenWidth - BELL_SIZE;
+        const minX = HORIZONTAL_INSET;
+        const maxX = screenWidth - HORIZONTAL_INSET - BELL_SIZE;
 
         isDraggingRef.current = false;
 
         // Snap to whichever horizontal edge is closer.
         const snapX =
-          currentX < maxX / 2
-            ? 0
+          currentX < (minX + maxX) / 2
+            ? minX
             : maxX;
 
         setPosition(
@@ -151,11 +156,12 @@ export function ClipboardNotifications() {
       onPanResponderTerminate: () => {
         const currentX = bellPositionRef.current.x;
 
-        const maxX = screenWidth - BELL_SIZE;
+        const minX = HORIZONTAL_INSET;
+        const maxX = screenWidth - HORIZONTAL_INSET - BELL_SIZE;
 
         const snapX =
-          currentX < maxX / 2
-            ? 0
+          currentX < (minX + maxX) / 2
+            ? minX
             : maxX;
 
         setPosition(
@@ -385,10 +391,16 @@ export function ClipboardNotifications() {
   ) => {
     await Clipboard.setStringAsync(notification.text);
 
-    copiedId.current = notification.receivedAt;
+    setNotifications((current) =>
+      current.filter(
+        (item) => item.receivedAt !== notification.receivedAt,
+      ),
+    );
+
+    setShowCopiedToast(true);
 
     setTimeout(() => {
-      copiedId.current = null;
+      setShowCopiedToast(false);
     }, 1600);
   };
 
@@ -496,27 +508,30 @@ export function ClipboardNotifications() {
                     }
                   >
                     <Ionicons
-                      name={
-                        copiedId.current ===
-                        notification.receivedAt
-                          ? "checkmark"
-                          : "copy-outline"
-                      }
+                      name="copy-outline"
                       size={16}
                       color={colors.green}
                     />
 
-                    <Text style={styles.copyText}>
-                      {copiedId.current ===
-                      notification.receivedAt
-                        ? "Copied"
-                        : "Copy"}
-                    </Text>
+                    <Text style={styles.copyText}>Copy</Text>
                   </Pressable>
                 </View>
               ))}
             </ScrollView>
           )}
+        </View>
+      ) : null}
+
+      {showCopiedToast ? (
+        <View style={styles.toast} pointerEvents="none">
+          <Ionicons
+            name="checkmark-circle"
+            size={18}
+            color={colors.green}
+          />
+          <Text style={styles.toastText}>
+            Text copied to clipboard
+          </Text>
         </View>
       ) : null}
     </View>
@@ -649,6 +664,37 @@ const styles = StyleSheet.create({
 
   pressed: {
     opacity: 0.65,
+  },
+
+  toast: {
+    position: "absolute",
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    elevation: 6,
+  },
+
+  toastText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
 
