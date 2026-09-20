@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -13,11 +14,21 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MarkdownContent } from "../../components/MarkdownContent";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { colors, radius, spacing } from "../../constants/theme";
+import { generateTicketSummary } from "../../lib/api";
 import { deleteTicket } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
-import type { ProgressItem, Ticket, WorkLog } from "../../types";
+import type {
+  ProgressItem,
+  Project,
+  Ticket,
+  TicketFile,
+  TicketNote,
+  WorkLog,
+  WorkSession,
+} from "../../types";
 
 export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +43,9 @@ export default function TicketDetailScreen() {
   const [howItWorks, setHowItWorks] = useState("");
   const [importantDecisions, setImportantDecisions] = useState("");
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [summaryError, setSummaryError] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
   useEffect(() => {
     const ticketId = Number(id);
     Promise.all([
@@ -101,6 +115,61 @@ export default function TicketDetailScreen() {
     await deleteTicket(db, ticket.id);
     router.back();
   };
+  const handleSummarize = async () => {
+    if (summarizing) return;
+
+    setSummarizing(true);
+    setSummaryError("");
+
+    try {
+      const ticketId = ticket.id;
+      const projectId = (ticket as Ticket & { project_id: number }).project_id;
+      const [project, ticketFiles, ticketNotes, workSessions] = await Promise.all([
+        db.getFirstAsync<Pick<Project, "name" | "description" | "repository_url">>(
+          "SELECT name, description, repository_url FROM projects WHERE id = ?",
+          projectId,
+        ),
+        db.getAllAsync<TicketFile>(
+          "SELECT * FROM ticket_files WHERE ticket_id = ? ORDER BY created_at DESC",
+          ticketId,
+        ),
+        db.getAllAsync<TicketNote>(
+          "SELECT * FROM ticket_notes WHERE ticket_id = ? ORDER BY updated_at DESC",
+          ticketId,
+        ),
+        db.getAllAsync<WorkSession>(
+          "SELECT * FROM work_sessions WHERE ticket_id = ? ORDER BY started_at DESC",
+          ticketId,
+        ),
+      ]);
+
+      const generatedSummary = await generateTicketSummary({
+        ticket: {
+          ...ticket,
+          next_action: nextAction,
+          my_context: myContext,
+          why_implementing: whyImplementing,
+          how_it_works: howItWorks,
+          important_decisions: importantDecisions,
+        },
+        project,
+        progress_items: progress,
+        work_logs: logs,
+        ticket_files: ticketFiles,
+        ticket_notes: ticketNotes,
+        work_sessions: workSessions,
+      });
+
+      setSummary(generatedSummary);
+    } catch (error) {
+      setSummary("");
+      setSummaryError(
+        error instanceof Error ? error.message : "Could not generate a summary.",
+      );
+    } finally {
+      setSummarizing(false);
+    }
+  };
   return (
     <SafeAreaView style={styles.page} edges={["top", "left", "right"]}>
       <View style={styles.nav}>
@@ -143,6 +212,28 @@ export default function TicketDetailScreen() {
             <PriorityBadge priority={ticket.priority} />
           </View>
         </View>
+        <Pressable
+          style={[styles.summarizeButton, summarizing && styles.summarizeButtonDisabled]}
+          onPress={handleSummarize}
+          disabled={summarizing}
+        >
+          {summarizing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Ionicons name="sparkles-outline" size={18} color="#fff" />
+          )}
+          <Text style={styles.summarizeButtonText}>
+            {summarizing ? "Summarizing..." : "Summarize ticket"}
+          </Text>
+        </Pressable>
+        {summaryError ? <Text style={styles.summaryError}>{summaryError}</Text> : null}
+        {summary ? (
+          <Section title="AI summary">
+            <View style={styles.summaryBox}>
+              <MarkdownContent content={summary} />
+            </View>
+          </Section>
+        ) : null}
         <Section title="What is this ticket?">
           <Text style={styles.body}>{ticket.description}</Text>
         </Section>
@@ -359,6 +450,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 16,
   },
+  summarizeButton: {
+    backgroundColor: colors.violet,
+    borderRadius: radius.md,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  summarizeButtonDisabled: { opacity: 0.75 },
+  summarizeButtonText: { color: "#fff", fontWeight: "800" },
+  summaryBox: {
+    backgroundColor: colors.violetSoft,
+    borderRadius: radius.md,
+    padding: 16,
+  },
+  summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
   section: { marginTop: 12, marginBottom: 12 },
   sectionTitle: {
     color: colors.ink,

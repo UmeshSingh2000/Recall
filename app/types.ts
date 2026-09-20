@@ -59,3 +59,18 @@ export type WorkSession = {
   summary: string;
   next_action: string;
 };
+
+export type TicketFile = {
+  id: number;
+  ticket_id: number;
+  file_path: string;
+  created_at: string;
+};
+
+export type TicketNote = {
+  id: number;
+  ticket_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};

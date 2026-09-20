@@ -61,6 +61,7 @@ export default {
       ],
 
       "expo-sharing",
+      "expo-secure-store",
     ],
 
     experiments: {
