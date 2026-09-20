@@ -9,7 +9,7 @@ import type {
   WorkSession,
 } from "../types";
 
-export const BACKEND_URL = "https://bibliopolar-treena-untrod.ngrok-free.dev";
+export const BACKEND_URL = "https://recall-en47.onrender.com";
 
 const API_TOKEN_KEY = "recall.api_token";
 
