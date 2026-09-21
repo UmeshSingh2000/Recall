@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClipboardNotifications } from "../components/ClipboardNotifications";
+import { GitCommitListener } from "../components/GitCommitListener";
 import { colors, spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
 
@@ -64,6 +65,7 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
     <>
       {children}
       <ClipboardNotifications />
+      <GitCommitListener />
     </>
   );
 }

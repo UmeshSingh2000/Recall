@@ -3,6 +3,8 @@ import clipboard from "clipboardy";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import fs from "fs";
+import net from "net";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +47,80 @@ function startHotkeyListener() {
     throw new Error(`Unsupported platform for hotkeys: ${process.platform}`);
 }
 
+const socketPath = path.join(
+    process.env.XDG_RUNTIME_DIR,
+    "recall.sock"
+);
+
+function startSocketServer() {
+    // Remove stale socket from previous process
+    if (fs.existsSync(socketPath)) {
+        fs.unlinkSync(socketPath);
+    }
+
+    const server = net.createServer((socket) => {
+        let data = "";
+
+        socket.on("data", (chunk) => {
+            data += chunk.toString();
+        });
+
+        socket.on("end", async () => {
+            try {
+                const gitContext = JSON.parse(data);
+
+                console.log("Git context received:", gitContext);
+
+                await sendGitCommitToRecall(gitContext);
+            } catch (error) {
+                console.error(
+                    "Failed to process Git context:",
+                    error.message
+                );
+            }
+        });
+    });
+
+    server.listen(socketPath, () => {
+        console.log("Recall socket listening:", socketPath);
+    });
+
+    return server;
+}
+
+
+async function sendGitCommitToRecall(gitContext) {
+    try {
+        const response = await fetch(
+            "https://ruffed-blebby-peg.ngrok-free.dev/api/git/commit",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiToken}`,
+                },
+                body: JSON.stringify(gitContext)
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `Backend responded with ${response.status}`
+            );
+        }
+
+        console.log("Git commit sent to Recall.");
+    } catch (error) {
+        console.error(
+            "Failed to send Git commit:",
+            error.message
+        );
+    }
+}
+
+
 const hotkey = startHotkeyListener();
+const socketServer = startSocketServer();
 
 hotkey.stdout.on("data", async (data) => {
     const message = data.toString().trim();
@@ -85,6 +160,7 @@ hotkey.on("close", (code) => {
 
 function shutdown() {
     hotkey.kill("SIGTERM");
+    socketServer.close()
 }
 
 process.on("SIGINT", shutdown);

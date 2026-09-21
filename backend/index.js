@@ -60,6 +60,49 @@ function broadcastClipboard(text) {
   });
 }
 
+function broadcast(message) {
+  const serialized = JSON.stringify(message);
+
+  webSocketServer.clients.forEach((client) => {
+    if (client.readyState === 1) {
+      client.send(serialized);
+    }
+  });
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeGitContext(payload) {
+  const allowedLogTypes = new Set([
+    "code",
+    "bug_fix",
+    "investigation",
+    "testing",
+    "refactoring",
+    "documentation",
+    "decision",
+    "other",
+  ]);
+
+  return {
+    type: "git_commit",
+    eventId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    repository: isNonEmptyString(payload.repository) ? payload.repository.trim() : "",
+    ticketKey: payload.ticketKey.trim(),
+    commitHash: isNonEmptyString(payload.commitHash) ? payload.commitHash.trim() : "",
+    commitMessage: isNonEmptyString(payload.commitMessage) ? payload.commitMessage.trim() : "",
+    description: isNonEmptyString(payload.description) ? payload.description.trim() : "",
+    files: Array.isArray(payload.files)
+      ? payload.files.filter((file) => isNonEmptyString(file)).map((file) => file.trim())
+      : [],
+    logType: allowedLogTypes.has(payload.type) ? payload.type : "code",
+    nextAction: isNonEmptyString(payload.next_action) ? payload.next_action.trim() : "",
+  };
+}
+
 async function sendPushNotifications(text, receivedAt) {
   if (pushTokens.size === 0) return;
 
@@ -130,6 +173,25 @@ app.post("/api/clipboard", requireApiToken, (req, res) => {
   broadcastClipboard(text);
 
   return res.status(200).json({ message: "Clipboard text received." });
+});
+
+// Receives the context emitted by the local Git socket script. Ticket data lives
+// on each device, so the backend validates and relays this event to connected apps.
+app.post("/api/git/commit", requireApiToken, (req, res) => {
+  if (!req.body || !isNonEmptyString(req.body.ticketKey)) {
+    return res.status(400).json({
+      error: "The request body must include a non-empty ticketKey.",
+    });
+  }
+
+  const gitCommit = normalizeGitContext(req.body);
+  broadcast(gitCommit);
+
+  return res.status(202).json({
+    message: "Git commit received and sent to connected apps.",
+    eventId: gitCommit.eventId,
+    receivedAt: gitCommit.receivedAt,
+  });
 });
 
 export async function generateWithGroq(messages) {

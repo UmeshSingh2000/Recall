@@ -19,6 +19,7 @@ import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { colors, radius, spacing } from "../../constants/theme";
 import { generateTicketSummary } from "../../lib/api";
 import { deleteTicket } from "../../lib/database";
+import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
 import { relativeTime, titleCase } from "../../lib/format";
 import type {
   ProgressItem,
@@ -58,9 +59,9 @@ export default function TicketDetailScreen() {
   const [summary, setSummary] = useState("");
   const [summaryError, setSummaryError] = useState("");
   const [summarizing, setSummarizing] = useState(false);
-  useEffect(() => {
+  const loadTicket = () => {
     const ticketId = Number(id);
-    Promise.all([
+    return Promise.all([
       db.getFirstAsync<Ticket>(
         "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.id = ?",
         ticketId,
@@ -83,7 +84,16 @@ export default function TicketDetailScreen() {
       setProgress(nextProgress);
       setLogs(nextLogs);
     });
+  };
+  useEffect(() => {
+    loadTicket();
   }, [db, id]);
+  useEffect(() => {
+    const ticketId = Number(id);
+    return subscribeToGitCommitLogs((updatedTicketId) => {
+      if (updatedTicketId === ticketId) loadTicket();
+    });
+  }, [id]);
   if (!ticket)
     return (
       <SafeAreaView style={styles.loading} edges={["top", "left", "right"]}>
