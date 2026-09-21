@@ -247,28 +247,35 @@ def listen_with_gnome() -> None:
 
 
 def main() -> int:
-    if can_use_evdev():
-        try:
-            listen_with_evdev()
-            return 0
-        except RuntimeError as error:
-            emit_error(str(error))
-            return 1
+    is_gnome_wayland = (
+        os.environ.get("XDG_SESSION_TYPE") == "wayland"
+        and "gnome" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+    )
 
-    if os.environ.get("XDG_SESSION_TYPE") == "wayland" and os.environ.get(
-        "XDG_CURRENT_DESKTOP", ""
-    ).lower().find("gnome") >= 0:
+    # Prefer GNOME's desktop keybinding on Wayland.
+    # This avoids requiring access to /dev/input.
+    if is_gnome_wayland:
         try:
             listen_with_gnome()
             return 0
         except (OSError, subprocess.CalledProcessError) as error:
-            emit_error(f"Failed to register Ctrl+Alt+Space via GNOME: {error}")
+            emit_error(
+                f"Failed to register Ctrl+Alt+Space via GNOME: {error}"
+            )
+            return 1
+
+    # Use evdev on non-Wayland environments such as X11.
+    if can_use_evdev():
+        try:
+            listen_with_evdev()
+            return 0
+        except (OSError, PermissionError, RuntimeError) as error:
+            emit_error(f"Failed to register Ctrl+Alt+Space via evdev: {error}")
             return 1
 
     emit_error(
-        "Failed to register Ctrl+Alt+Space. Either install evdev and join the "
-        "'input' group (sudo usermod -aG input $USER), or run under GNOME "
-        "Wayland for the desktop keybinding fallback."
+        "Failed to register Ctrl+Alt+Space. Either install evdev and join "
+        "the 'input' group, or run under GNOME Wayland."
     )
     return 1
 

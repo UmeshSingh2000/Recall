@@ -12,6 +12,9 @@ export default {
 
     ios: {
       supportsTablet: true,
+      bundleIdentifier: isProduction
+        ? "com.umessh.app"
+        : "com.umessh.app.dev",
     },
 
     android: {
