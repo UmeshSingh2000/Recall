@@ -28,7 +28,19 @@ import type {
   TicketNote,
   WorkLog,
   WorkSession,
+  TicketStatus,
 } from "../../types";
+
+const statusOptions: { label: string; value: TicketStatus }[] = [
+  { label: "In progress", value: "in_progress" },
+  { label: "Product review", value: "product_review" },
+  { label: "Code review", value: "code_review" },
+  { label: "Testing", value: "testing" },
+  { label: "Live", value: "live" },
+  { label: "Done", value: "done" },
+  { label: "Paused", value: "paused" },
+  { label: "Blocked", value: "blocked" },
+];
 
 export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -104,8 +116,9 @@ export default function TicketDetailScreen() {
   };
   const updateStatus = async (status: Ticket['status']) => {
     const now = new Date().toISOString();
-    await db.runAsync('UPDATE tickets SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?', status, status === 'done' ? now : null, now, ticket.id);
-    setTicket({ ...ticket, status, completed_at: status === 'done' ? now : null });
+    const completed = status === 'done' || status === 'live';
+    await db.runAsync('UPDATE tickets SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?', status, completed ? now : null, now, ticket.id);
+    setTicket({ ...ticket, status, completed_at: completed ? now : null });
   };
   const confirmDelete = () => {
     setDeleteDialogVisible(true);
@@ -212,6 +225,21 @@ export default function TicketDetailScreen() {
             <PriorityBadge priority={ticket.priority} />
           </View>
         </View>
+        <Section title="Update status">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusOptions}>
+            {statusOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => updateStatus(option.value)}
+                style={[styles.statusOption, ticket.status === option.value && styles.statusOptionSelected]}
+              >
+                <Text style={[styles.statusOptionText, ticket.status === option.value && styles.statusOptionTextSelected]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </Section>
         <Pressable
           style={[styles.summarizeButton, summarizing && styles.summarizeButtonDisabled]}
           onPress={handleSummarize}
@@ -346,8 +374,8 @@ export default function TicketDetailScreen() {
           <Pressable style={styles.logButton} onPress={() => router.push({ pathname: "/log-progress", params: { ticketId: ticket.id } })}>
             <Ionicons name="create-outline" size={18} color="#fff" /><Text style={styles.logButtonText}>Log progress</Text>
           </Pressable>
-          {ticket.status !== 'done' ? <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/switch-work' as any, params: { ticketId: ticket.id } })}><Text style={styles.secondaryText}>Pause / switch</Text></Pressable> : null}
-          {ticket.status !== 'done' ? <Pressable style={styles.doneButton} onPress={() => updateStatus('done')}><Ionicons name="checkmark" size={17} color={colors.green} /><Text style={styles.doneText}>Mark done</Text></Pressable> : <Pressable style={styles.secondaryButton} onPress={() => updateStatus('in_progress')}><Text style={styles.secondaryText}>Reopen ticket</Text></Pressable>}
+          {!['done', 'live'].includes(ticket.status) ? <Pressable style={styles.secondaryButton} onPress={() => router.push({ pathname: '/switch-work' as any, params: { ticketId: ticket.id } })}><Text style={styles.secondaryText}>Pause / switch</Text></Pressable> : null}
+          {!['done', 'live'].includes(ticket.status) ? <Pressable style={styles.doneButton} onPress={() => updateStatus('done')}><Ionicons name="checkmark" size={17} color={colors.green} /><Text style={styles.doneText}>Mark done</Text></Pressable> : <Pressable style={styles.secondaryButton} onPress={() => updateStatus('in_progress')}><Text style={styles.secondaryText}>Reopen ticket</Text></Pressable>}
           <Pressable style={styles.deleteButton} onPress={confirmDelete}>
             <Ionicons name="trash-outline" size={17} color={colors.red} />
             <Text style={styles.deleteText}>Delete ticket</Text>
@@ -450,6 +478,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 16,
   },
+  statusOptions: { gap: 8, paddingBottom: 2 },
+  statusOption: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  statusOptionSelected: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
+  statusOptionText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  statusOptionTextSelected: { color: "#fff" },
   summarizeButton: {
     backgroundColor: colors.violet,
     borderRadius: radius.md,

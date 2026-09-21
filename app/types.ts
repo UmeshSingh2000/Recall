@@ -1,4 +1,4 @@
-export type TicketStatus = 'in_progress' | 'paused' | 'blocked' | 'review' | 'done';
+export type TicketStatus = 'in_progress' | 'paused' | 'blocked' | 'review' | 'product_review' | 'code_review' | 'testing' | 'live' | 'done';
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type WorkLogType = 'code' | 'bug_fix' | 'investigation' | 'testing' | 'refactoring' | 'documentation' | 'decision' | 'other';
 

@@ -14,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../constants/theme";
 
 type ClipboardEvent = {
@@ -27,7 +28,7 @@ const webSocketUrl = backendUrl.replace(/^https/, "wss");
 const clipboardChannelId = "clipboard-v2";
 
 const BELL_SIZE = 44;
-const INITIAL_TOP = 52;
+const INITIAL_TOP = 8;
 const HORIZONTAL_INSET = spacing.lg;
 
 if (Platform.OS !== "web") {
@@ -42,6 +43,7 @@ if (Platform.OS !== "web") {
 }
 
 export function ClipboardNotifications() {
+  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -51,7 +53,7 @@ export function ClipboardNotifications() {
 
   const [bellPosition, setBellPosition] = useState(() => ({
     x: screenWidth - spacing.lg - BELL_SIZE,
-    y: INITIAL_TOP,
+    y: insets.top + INITIAL_TOP,
   }));
 
   const bellPositionRef = useRef(bellPosition);
@@ -65,19 +67,22 @@ export function ClipboardNotifications() {
 
   const pushNotificationsEnabled = useRef(false);
 
+  const minY = insets.top + INITIAL_TOP;
+  const maxY = Math.max(minY, screenHeight - insets.bottom - BELL_SIZE - INITIAL_TOP);
+  const boundsRef = useRef({ screenWidth, minY, maxY });
+  boundsRef.current = { screenWidth, minY, maxY };
+
   const setPosition = (x: number, y: number) => {
+    const bounds = boundsRef.current;
     const boundedX = Math.max(
       HORIZONTAL_INSET,
       Math.min(
         x,
-        screenWidth - HORIZONTAL_INSET - BELL_SIZE,
+        bounds.screenWidth - HORIZONTAL_INSET - BELL_SIZE,
       ),
     );
 
-    const boundedY = Math.max(
-      0,
-      Math.min(y, screenHeight - BELL_SIZE),
-    );
+    const boundedY = Math.max(bounds.minY, Math.min(y, bounds.maxY));
 
     const position = {
       x: boundedX,
@@ -87,6 +92,10 @@ export function ClipboardNotifications() {
     bellPositionRef.current = position;
     setBellPosition(position);
   };
+
+  useEffect(() => {
+    setPosition(bellPositionRef.current.x, bellPositionRef.current.y);
+  }, [insets.bottom, insets.top, screenHeight, screenWidth]);
 
   const panResponder = useRef(
     PanResponder.create({

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmDialog, TicketCard } from '../../components/ui';
+import { WorkloadGraph } from '../../components/WorkloadGraph';
 import { colors, radius, spacing } from '../../constants/theme';
 import { deleteProject } from '../../lib/database';
 import type { Project, Ticket } from '../../types';
@@ -61,10 +62,15 @@ export default function ProjectDetail() {
         <Text style={s.description}>{project.description || 'No description yet.'}</Text>
         {project.repository_url ? <Text style={s.repo}>{project.repository_url}</Text> : null}
         <View style={s.counts}>
-          <Text style={s.count}>{tickets.filter((x) => x.status === 'in_progress').length} active</Text>
+          <Text style={s.count}>{tickets.filter((x) => !['done', 'live', 'paused', 'blocked'].includes(x.status)).length} active</Text>
           <Text style={s.count}>{tickets.filter((x) => x.status === 'paused' || x.status === 'blocked').length} paused</Text>
-          <Text style={s.count}>{tickets.filter((x) => x.status === 'done').length} done</Text>
+          <Text style={s.count}>{tickets.filter((x) => x.status === 'done' || x.status === 'live').length} done</Text>
         </View>
+        <WorkloadGraph
+          active={tickets.filter((x) => !['done', 'live', 'paused', 'blocked'].includes(x.status)).length}
+          paused={tickets.filter((x) => x.status === 'paused' || x.status === 'blocked').length}
+          done={tickets.filter((x) => x.status === 'done' || x.status === 'live').length}
+        />
         <Text style={s.heading}>Tickets</Text>
         {tickets.map((ticket) => (
           <TicketCard key={ticket.id} ticket={ticket} onPress={() => router.push(`/ticket/${ticket.id}`)} />

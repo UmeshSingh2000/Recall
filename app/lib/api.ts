@@ -83,3 +83,36 @@ export async function generateTicketSummary(payload: GenerateSummaryPayload) {
 
   return result.summary.trim();
 }
+
+export type GenerateLogSummaryPayload = {
+  log: WorkLog;
+  ticket: Pick<Ticket, "ticket_key" | "title" | "description" | "status" | "next_action">;
+  project?: Pick<Project, "name" | "description" | "repository_url"> | null;
+};
+
+export async function generateLogSummary(payload: GenerateLogSummaryPayload) {
+  const token = await getApiToken();
+  const response = await fetch(`${BACKEND_URL}/api/generate-log-summary`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = typeof result?.error === "string"
+      ? result.error
+      : `The summary service responded with ${response.status}.`;
+    throw new Error(message);
+  }
+
+  if (!result?.summary || typeof result.summary !== "string") {
+    throw new Error("The summary service returned an invalid response.");
+  }
+
+  return result.summary.trim();
+}

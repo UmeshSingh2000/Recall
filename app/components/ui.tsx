@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../constants/theme";
 import { titleCase } from "../lib/format";
@@ -40,6 +40,10 @@ export function StatusBadge({ status }: { status: Ticket["status"] }) {
     paused: [colors.orangeSoft, colors.orange],
     blocked: [colors.redSoft, colors.red],
     review: [colors.violetSoft, colors.violet],
+    product_review: [colors.violetSoft, colors.violet],
+    code_review: [colors.blueSoft, colors.blue],
+    testing: [colors.orangeSoft, colors.orange],
+    live: [colors.greenSoft, colors.green],
     done: [colors.blueSoft, colors.blue],
   }[status];
   return (
@@ -156,13 +160,15 @@ export function SearchInput({
   value,
   onChangeText,
   placeholder = "Search tickets, projects, notes...",
+  style,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View style={styles.search}>
+    <View style={[styles.search, style]}>
       <Ionicons name="search" size={19} color={colors.muted} />
       <TextInput
         value={value}

@@ -1,6 +1,6 @@
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, Pressable, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, Pressable, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
@@ -18,6 +18,10 @@ const filters: { label: string; value: TicketStatus | "all" }[] = [
   { label: "Paused", value: "paused" },
   { label: "Blocked", value: "blocked" },
   { label: "Review", value: "review" },
+  { label: "Product review", value: "product_review" },
+  { label: "Code review", value: "code_review" },
+  { label: "Testing", value: "testing" },
+  { label: "Live", value: "live" },
   { label: "Done", value: "done" },
 ];
 export default function TicketsScreen() {
@@ -26,11 +30,21 @@ export default function TicketsScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const loadTickets = useCallback(() => {
-    db.getAllAsync<Ticket>(
+    return db.getAllAsync<Ticket>(
       "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC",
     ).then(setTickets);
   }, [db]);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadTickets();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadTickets]);
   useFocusEffect(
     useCallback(() => {
       loadTickets();
@@ -49,42 +63,51 @@ export default function TicketsScreen() {
       subtitle={`${shown.length} tickets in your workspace`}
       right={<Pressable accessibilityRole="button" accessibilityLabel="Add ticket" style={styles.addButton} onPress={() => router.push("/new-ticket")}><Ionicons name="add" size={20} color="#fff" /></Pressable>}
     >
-      <SearchInput
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search tickets..."
-      />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filters}
-        contentContainerStyle={styles.filterContent}
-      >
-        {filters.map((item) => (
-          <Pressable
-            key={item.value}
-            onPress={() => setFilter(item.value)}
-            style={[styles.chip, filter === item.value && styles.chipActive]}
-          >
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.chipText,
-                filter === item.value && styles.chipTextActive,
-              ]}
-            >
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.searchRow}>
+        <SearchInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search tickets..."
+          style={styles.searchField}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Filter tickets"
+          onPress={() => setFilterMenuOpen((open) => !open)}
+          style={[styles.filterButton, filter !== "all" && styles.filterButtonActive]}
+        >
+          <Ionicons name="options-outline" size={20} color={filter !== "all" ? "#fff" : colors.ink} />
+        </Pressable>
+        {filterMenuOpen ? (
+          <View style={styles.filterMenu}>
+            {filters.map((item) => (
+              <Pressable
+                key={item.value}
+                onPress={() => {
+                  setFilter(item.value);
+                  setFilterMenuOpen(false);
+                }}
+                style={[styles.menuItem, filter === item.value && styles.menuItemActive]}
+              >
+                <Text style={[styles.menuText, filter === item.value && styles.menuTextActive]}>
+                  {item.label}
+                </Text>
+                {filter === item.value ? <Ionicons name="checkmark" size={17} color="#fff" /> : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
       <View style={styles.sort}>
         <Text style={styles.sortLabel}>Recently updated</Text>
         <Text style={styles.sortIcon}>↕</Text>
       </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        bounces
+        alwaysBounceVertical
         contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
       >
         {shown.length ? (
           shown.map((ticket) => (
@@ -109,27 +132,47 @@ export default function TicketsScreen() {
 }
 const styles = StyleSheet.create({
   addButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
-  filters: { height: 40, flexGrow: 0, marginBottom: 12 },
-  filterContent: { alignItems: "center" },
-  chip: {
-    height: 38,
-    flexShrink: 0,
+  searchRow: { position: "relative", flexDirection: "row", alignItems: "flex-start", gap: 8, zIndex: 10 },
+  searchField: { flex: 1, minWidth: 0 },
+  filterButton: {
+    width: 48,
+    height: 48,
+    marginBottom: 16,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.surface,
     borderColor: colors.line,
     borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 0,
-    marginRight: 7,
+  },
+  filterButtonActive: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
+  filterMenu: {
+    position: "absolute",
+    top: 54,
+    right: 0,
+    width: 210,
+    padding: 6,
     backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
   },
-  chipActive: {
-    backgroundColor: colors.charcoal,
-    borderColor: colors.charcoal,
+  menuItem: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  chipText: { color: colors.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  chipTextActive: { color: "#fff" },
+  menuItemActive: { backgroundColor: colors.charcoal },
+  menuText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  menuTextActive: { color: "#fff" },
   sort: {
     flexDirection: "row",
     alignItems: "center",
