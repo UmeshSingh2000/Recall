@@ -10,6 +10,14 @@ export default {
     scheme: "recall",
     userInterfaceStyle: "automatic",
 
+    updates: {
+      url: "https://u.expo.dev/376039da-5f94-4b16-bf6b-c5ae81d37f95",
+    },
+
+    runtimeVersion: {
+      policy: "appVersion",
+    },
+
     ios: {
       supportsTablet: true,
       bundleIdentifier: isProduction
