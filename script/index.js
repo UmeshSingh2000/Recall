@@ -92,7 +92,7 @@ function startSocketServer() {
 async function sendGitCommitToRecall(gitContext) {
     try {
         const response = await fetch(
-            "https://ruffed-blebby-peg.ngrok-free.dev/api/git/commit",
+            "https://recall-en47.onrender.com/api/git/commit",
             {
                 method: "POST",
                 headers: {
@@ -104,6 +104,7 @@ async function sendGitCommitToRecall(gitContext) {
         );
 
         if (!response.ok) {
+            console.log("Response status:", response);
             throw new Error(
                 `Backend responded with ${response.status}`
             );
@@ -113,7 +114,7 @@ async function sendGitCommitToRecall(gitContext) {
     } catch (error) {
         console.error(
             "Failed to send Git commit:",
-            error.message
+            error
         );
     }
 }
