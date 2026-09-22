@@ -6,8 +6,8 @@ import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radius, tabBarInset } from "../../constants/theme";
 import { ConfirmDialog, Screen } from "../../components/ui";
+import { colors, radius, tabBarInset } from "../../constants/theme";
 import { clearApiToken, hasApiToken, saveApiToken } from "../../lib/api";
 import { createBackup, parseBackup, restoreBackup, type RecallBackup } from "../../lib/backup";
 import { deleteAllData } from "../../lib/database";
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>
           <Text style={styles.aboutText}>A quiet place for the context behind your code.</Text>
-          <Text style={styles.version}>Version 1.0.1 · Local-first</Text>
+          <Text style={styles.version}>Version 1.0.2 · Local-first</Text>
         </View>
       </ScrollView>
       <ConfirmDialog
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   knobOn: { alignSelf: "flex-end" },
   about: { alignItems: "center", padding: 35 },
   aboutTitle: { color: colors.ink, fontSize: 20, fontWeight: "800" },
-  aboutText: { color: colors.muted, marginTop: 6 },
+  aboutText: { color: colors.muted, marginTop: 6, textAlign: "center" },
   version: { color: colors.muted, fontSize: 12, marginTop: 12 },
   status: { color: colors.green, fontSize: 13, lineHeight: 19, marginTop: 10, marginHorizontal: 4 },
   tokenSection: { padding: 14, gap: 10 },
