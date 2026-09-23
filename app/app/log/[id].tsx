@@ -11,7 +11,7 @@ import { colors, radius, spacing } from "../../constants/theme";
 import { generateLogSummary } from "../../lib/api";
 import { deleteWorkLog } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
-import type { TicketStatus, WorkLog } from "../../types";
+import type { TicketFile, TicketStatus, WorkLog } from "../../types";
 
 type LogDetail = WorkLog & {
   ticket_key: string;
@@ -33,18 +33,42 @@ export default function LogDetailScreen() {
   const [summaryError, setSummaryError] = useState("");
   const [summarizing, setSummarizing] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [files, setFiles] = useState<TicketFile[]>([]);
 
   useEffect(() => {
-    db.getFirstAsync<LogDetail>(
-      `SELECT w.*, t.ticket_key, t.title AS ticket_title, t.description AS ticket_description,
-       t.status AS ticket_status, t.next_action AS ticket_next_action,
-       p.name AS project_name, p.description AS project_description, p.repository_url
-       FROM work_logs w
-       JOIN tickets t ON t.id = w.ticket_id
-       JOIN projects p ON p.id = t.project_id
-       WHERE w.id = ?`,
-      Number(id),
-    ).then(setLog);
+    let cancelled = false;
+
+    (async () => {
+      const nextLog = await db.getFirstAsync<LogDetail>(
+        `SELECT w.*, t.ticket_key, t.title AS ticket_title, t.description AS ticket_description,
+         t.status AS ticket_status, t.next_action AS ticket_next_action,
+         p.name AS project_name, p.description AS project_description, p.repository_url
+         FROM work_logs w
+         JOIN tickets t ON t.id = w.ticket_id
+         JOIN projects p ON p.id = t.project_id
+         WHERE w.id = ?`,
+        Number(id),
+      );
+
+      if (cancelled) return;
+      setLog(nextLog);
+
+      if (!nextLog) {
+        setFiles([]);
+        return;
+      }
+
+      const nextFiles = await db.getAllAsync<TicketFile>(
+        "SELECT * FROM ticket_files WHERE ticket_id = ? AND created_at = ? ORDER BY id",
+        nextLog.ticket_id,
+        nextLog.created_at,
+      );
+      if (!cancelled) setFiles(nextFiles);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [db, id]);
 
   const handleSummarize = async () => {
@@ -79,7 +103,14 @@ export default function LogDetailScreen() {
   const handleDelete = async () => {
     if (!log) return;
     setDeleteDialogVisible(false);
-    await deleteWorkLog(db, log.id);
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        "DELETE FROM ticket_files WHERE ticket_id = ? AND created_at = ?",
+        log.ticket_id,
+        log.created_at,
+      );
+      await deleteWorkLog(db, log.id);
+    });
     router.back();
   };
 
@@ -149,6 +180,15 @@ export default function LogDetailScreen() {
             <Text style={styles.commit}>{log.commit_hash}</Text>
           </DetailSection>
         ) : null}
+        {files.length ? (
+          <DetailSection title="Files changed">
+            {files.map((file) => (
+              <Text key={file.id} style={styles.filePath}>
+                {file.file_path}
+              </Text>
+            ))}
+          </DetailSection>
+        ) : null}
       </ScrollView>
       <ConfirmDialog
         visible={deleteDialogVisible}
@@ -198,4 +238,11 @@ const styles = StyleSheet.create({
   nextBox: { flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: 15 },
   nextText: { color: colors.charcoal, flex: 1, fontSize: 14, lineHeight: 21 },
   commit: { color: colors.violet, fontFamily: "monospace", fontSize: 14 },
+  filePath: {
+    color: colors.charcoal,
+    fontFamily: "monospace",
+    fontSize: 13,
+    lineHeight: 21,
+    marginBottom: 4,
+  },
 });
