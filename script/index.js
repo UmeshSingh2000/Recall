@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import fs from "fs";
 import net from "net";
+import os from "os";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,14 +48,18 @@ function startHotkeyListener() {
     throw new Error(`Unsupported platform for hotkeys: ${process.platform}`);
 }
 
-const socketPath = path.join(
-    process.env.XDG_RUNTIME_DIR,
-    "recall.sock"
-);
+const socketPath =
+    process.platform === "win32"
+        ? "\\\\.\\pipe\\recall.sock"
+        : path.join(
+            process.env.XDG_RUNTIME_DIR || "/tmp",
+            "recall.sock"
+        );
+
 
 function startSocketServer() {
-    // Remove stale socket from previous process
-    if (fs.existsSync(socketPath)) {
+    // Unix domain sockets leave a file on disk; Windows named pipes do not.
+    if (process.platform !== "win32" && fs.existsSync(socketPath)) {
         fs.unlinkSync(socketPath);
     }
 
@@ -79,6 +84,17 @@ function startSocketServer() {
                 );
             }
         });
+    });
+
+    server.on("error", (err) => {
+        if (err.code === "EADDRINUSE") {
+            console.error(
+                "Recall socket already in use (%s). Stop the other running instance and retry.",
+                socketPath
+            );
+            process.exit(1);
+        }
+        throw err;
     });
 
     server.listen(socketPath, () => {
@@ -160,7 +176,11 @@ hotkey.on("close", (code) => {
 });
 
 function shutdown() {
-    hotkey.kill("SIGTERM");
+    if (process.platform === "win32") {
+        hotkey.kill();
+    } else {
+        hotkey.kill("SIGTERM");
+    }
     socketServer.close()
 }
 
