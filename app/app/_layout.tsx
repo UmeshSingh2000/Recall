@@ -1,18 +1,22 @@
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClipboardNotifications } from "../components/ClipboardNotifications";
 import { GitCommitListener } from "../components/GitCommitListener";
-import { colors, spacing } from "../constants/theme";
+import { ThemeProvider, useTheme, useThemedStyles } from "../components/ThemeProvider";
+import { spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SQLiteProvider databaseName="recall.db" onInit={initializeDatabase}>
-        <DatabaseGate>
+        <ThemeProvider>
+          <ThemedStatusBar />
+          <DatabaseGate>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="ticket/[id]" options={{ presentation: "card" }} />
@@ -24,14 +28,29 @@ export default function RootLayout() {
             <Stack.Screen name="new-project" options={{ presentation: "modal" }} />
             <Stack.Screen name="project/[id]" options={{ presentation: "card" }} />
           </Stack>
-        </DatabaseGate>
+          </DatabaseGate>
+        </ThemeProvider>
       </SQLiteProvider>
     </SafeAreaProvider>
   );
 }
 
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? "light" : "dark"} />;
+}
+
 function DatabaseGate({ children }: { children: React.ReactNode }) {
   const db = useSQLiteContext();
+  const styles = useThemedStyles((colors) => ({
+    loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
+    loadingMark: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.charcoal },
+    loadingMarkText: { color: colors.greenSoft, fontSize: 30, fontWeight: "900" },
+    loadingTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginTop: spacing.md },
+    loadingSubtitle: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
+    spinner: { marginTop: spacing.lg },
+  }));
+  const { colors } = useTheme();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -70,11 +89,3 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
-  loadingMark: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.charcoal },
-  loadingMarkText: { color: colors.greenSoft, fontSize: 30, fontWeight: "900" },
-  loadingTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginTop: spacing.md },
-  loadingSubtitle: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
-  spinner: { marginTop: spacing.lg },
-});

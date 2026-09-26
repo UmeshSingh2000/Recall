@@ -19,7 +19,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { colors, radius } from "../constants/theme";
+import { radius } from "../constants/theme";
+import { useTheme, useThemedStyles } from "./ThemeProvider";
 import { relativeTime } from "../lib/format";
 import type { Ticket } from "../types";
 import { StatusBadge } from "./ui";
@@ -35,6 +36,82 @@ type TicketDeckProps = {
   onDeckIndexChange: Dispatch<SetStateAction<number>>;
 };
 
+function useTicketDeckStyles() {
+  return useThemedStyles((colors) => ({
+    deckWrapper: {
+      height: DECK_HEIGHT,
+      marginBottom: 28,
+      position: "relative",
+    },
+    card: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      height: DECK_HEIGHT,
+      backgroundColor: colors.hero,
+      borderColor: colors.heroBorder,
+      borderWidth: 1,
+      borderRadius: radius.lg,
+      overflow: "hidden",
+    },
+    accent: { height: 4, backgroundColor: colors.green },
+    main: { padding: 18 },
+    top: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    key: {
+      color: colors.heroKicker,
+      fontWeight: "800",
+      fontSize: 12,
+      letterSpacing: 0.6,
+    },
+    title: {
+      color: colors.heroText,
+      fontSize: 20,
+      lineHeight: 24,
+      height: 48,
+      fontWeight: "800",
+      marginTop: 11,
+    },
+    project: { color: colors.heroSubtext, fontSize: 13, height: 18, marginTop: 4 },
+    lastSession: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      height: 18,
+      marginTop: 17,
+    },
+    lastSessionText: { color: colors.heroSubtext, fontSize: 12 },
+    nextAction: {
+      borderTopColor: colors.heroBorder,
+      borderTopWidth: 1,
+      marginTop: 17,
+      paddingTop: 13,
+      height: 69,
+    },
+    nextLabel: {
+      color: colors.heroKicker,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 1,
+    },
+    nextValue: { color: colors.heroText, fontSize: 13, lineHeight: 18, height: 36, fontWeight: "600", marginTop: 5 },
+    continue: {
+      backgroundColor: colors.green,
+      borderRadius: radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      paddingVertical: 12,
+      marginTop: 18,
+    },
+    continueText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  }));
+}
+
 function DeckCard({
   ticket,
   onPress,
@@ -42,6 +119,8 @@ function DeckCard({
   ticket: Ticket;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useTicketDeckStyles();
   return (
     <Pressable onPress={onPress}>
       <View style={styles.accent} />
@@ -53,7 +132,7 @@ function DeckCard({
         <Text style={styles.title} numberOfLines={2}>{ticket.title}</Text>
         <Text style={styles.project} numberOfLines={1}>{ticket.project_name}</Text>
         <View style={styles.lastSession}>
-          <Ionicons name="time-outline" size={15} color={colors.muted} />
+          <Ionicons name="time-outline" size={15} color={colors.heroSubtext} />
           <Text style={styles.lastSessionText} numberOfLines={1}>
             Last worked {relativeTime(ticket.updated_at)}
           </Text>
@@ -78,6 +157,7 @@ export function TicketDeck({
   deckIndex,
   onDeckIndexChange,
 }: TicketDeckProps) {
+  const styles = useTicketDeckStyles();
   const router = useRouter();
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -183,74 +263,3 @@ export function TicketDeck({
   );
 }
 
-const styles = StyleSheet.create({
-  deckWrapper: {
-    height: DECK_HEIGHT,
-    marginBottom: 28,
-    position: "relative",
-  },
-  card: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: DECK_HEIGHT,
-    backgroundColor: colors.charcoal,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-  },
-  accent: { height: 4, backgroundColor: colors.green },
-  main: { padding: 18 },
-  top: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  key: {
-    color: "#9BE3C6",
-    fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 0.6,
-  },
-  title: {
-    color: "#fff",
-    fontSize: 20,
-    lineHeight: 24,
-    height: 48,
-    fontWeight: "800",
-    marginTop: 11,
-  },
-  project: { color: "#AAB9BE", fontSize: 13, height: 18, marginTop: 4 },
-  lastSession: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    height: 18,
-    marginTop: 17,
-  },
-  lastSessionText: { color: "#AAB9BE", fontSize: 12 },
-  nextAction: {
-    borderTopColor: "#405059",
-    borderTopWidth: 1,
-    marginTop: 17,
-    paddingTop: 13,
-    height: 69,
-  },
-  nextLabel: {
-    color: "#88D9B8",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  nextValue: { color: "#fff", fontSize: 13, lineHeight: 18, height: 36, fontWeight: "600", marginTop: 5 },
-  continue: {
-    backgroundColor: colors.green,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    paddingVertical: 12,
-    marginTop: 18,
-  },
-  continueText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-});

@@ -6,15 +6,65 @@ import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { appearanceLabels, appearanceOptions, useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, Screen } from "../../components/ui";
-import { colors, radius, tabBarInset } from "../../constants/theme";
+import { radius, tabBarInset } from "../../constants/theme";
 import { clearApiToken, hasApiToken, saveApiToken } from "../../lib/api";
 import { createBackup, parseBackup, restoreBackup, type RecallBackup } from "../../lib/backup";
 import { deleteAllData } from "../../lib/database";
 
 export default function SettingsScreen() {
   const db = useSQLiteContext();
-  const [appearance, setAppearance] = useState("System");
+  const { appearance, setAppearance, colors } = useTheme();
+  const styles = useThemedStyles((colors) => ({
+    list: { paddingBottom: tabBarInset },
+    group: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 14, marginBottom: 8, marginLeft: 4 },
+    panel: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, overflow: "hidden" },
+    row: { minHeight: 54, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderBottomColor: colors.line, borderBottomWidth: 1 },
+    rowIcon: { width: 28 },
+    label: { color: colors.ink, flex: 1, fontSize: 14, fontWeight: "600" },
+    value: { color: colors.muted, fontSize: 12 },
+    toggle: { width: 42, height: 24, borderRadius: 12, backgroundColor: colors.line, padding: 3 },
+    toggleOn: { backgroundColor: colors.green },
+    knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
+    knobOn: { alignSelf: "flex-end" },
+    about: { alignItems: "center", padding: 35 },
+    aboutTitle: { color: colors.ink, fontSize: 20, fontWeight: "800" },
+    aboutText: { color: colors.muted, marginTop: 6, textAlign: "center" },
+    version: { color: colors.muted, fontSize: 12, marginTop: 12 },
+    status: { color: colors.green, fontSize: 13, lineHeight: 19, marginTop: 10, marginHorizontal: 4 },
+    tokenSection: { padding: 14, gap: 10 },
+    tokenLabel: { color: colors.ink, fontSize: 14, fontWeight: "700" },
+    tokenHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+    tokenInput: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: colors.ink,
+      backgroundColor: colors.canvas,
+      fontSize: 14,
+    },
+    tokenActions: { flexDirection: "row", gap: 10, alignItems: "center" },
+    tokenButton: {
+      backgroundColor: colors.green,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    tokenButtonText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+    tokenClearButton: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: colors.surface,
+    },
+    tokenClearText: { color: colors.charcoal, fontWeight: "700", fontSize: 13 },
+    tokenStatus: { color: colors.green, fontSize: 12, lineHeight: 18 },
+  }));
   const [sessions, setSessions] = useState(true);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [pendingImport, setPendingImport] = useState<RecallBackup | null>(null);
@@ -130,12 +180,12 @@ export default function SettingsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
         <Text style={styles.group}>APPEARANCE</Text>
         <View style={styles.panel}>
-          {["System", "Light", "Dark"].map((item) => (
+          {appearanceOptions.map((item) => (
             <Pressable key={item} style={styles.row} onPress={() => setAppearance(item)}>
               <View style={styles.rowIcon}>
-                <Ionicons name={item === "System" ? "contrast-outline" : item === "Dark" ? "moon-outline" : "sunny-outline"} size={18} color={colors.green} />
+                <Ionicons name={item === "system" ? "contrast-outline" : item === "dark" ? "moon-outline" : "sunny-outline"} size={18} color={colors.green} />
               </View>
-              <Text style={styles.label}>{item}</Text>
+              <Text style={styles.label}>{appearanceLabels[item]}</Text>
               {appearance === item ? <Ionicons name="checkmark-circle" size={20} color={colors.green} /> : null}
             </Pressable>
           ))}
@@ -207,7 +257,7 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>
           <Text style={styles.aboutText}>A quiet place for the context behind your code.</Text>
-          <Text style={styles.version}>Version 1.0.2 · Local-first</Text>
+          <Text style={styles.version}>Version 1.1.0 · Local-first</Text>
         </View>
       </ScrollView>
       <ConfirmDialog
@@ -230,52 +280,3 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  list: { paddingBottom: tabBarInset },
-  group: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 14, marginBottom: 8, marginLeft: 4 },
-  panel: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, overflow: "hidden" },
-  row: { minHeight: 54, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderBottomColor: colors.line, borderBottomWidth: 1 },
-  rowIcon: { width: 28 },
-  label: { color: colors.ink, flex: 1, fontSize: 14, fontWeight: "600" },
-  value: { color: colors.muted, fontSize: 12 },
-  toggle: { width: 42, height: 24, borderRadius: 12, backgroundColor: colors.line, padding: 3 },
-  toggleOn: { backgroundColor: colors.green },
-  knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
-  knobOn: { alignSelf: "flex-end" },
-  about: { alignItems: "center", padding: 35 },
-  aboutTitle: { color: colors.ink, fontSize: 20, fontWeight: "800" },
-  aboutText: { color: colors.muted, marginTop: 6, textAlign: "center" },
-  version: { color: colors.muted, fontSize: 12, marginTop: 12 },
-  status: { color: colors.green, fontSize: 13, lineHeight: 19, marginTop: 10, marginHorizontal: 4 },
-  tokenSection: { padding: 14, gap: 10 },
-  tokenLabel: { color: colors.ink, fontSize: 14, fontWeight: "700" },
-  tokenHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-  tokenInput: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: colors.ink,
-    backgroundColor: colors.canvas,
-    fontSize: 14,
-  },
-  tokenActions: { flexDirection: "row", gap: 10, alignItems: "center" },
-  tokenButton: {
-    backgroundColor: colors.green,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  tokenButtonText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-  tokenClearButton: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-  },
-  tokenClearText: { color: colors.charcoal, fontWeight: "700", fontSize: 13 },
-  tokenStatus: { color: colors.green, fontSize: 12, lineHeight: 18 },
-});

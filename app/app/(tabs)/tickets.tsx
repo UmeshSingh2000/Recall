@@ -1,9 +1,10 @@
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, Pressable, View } from "react-native";
+import { RefreshControl, ScrollView, Text, Pressable, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
+import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
+import { radius, tabBarInset } from "../../constants/theme";
 import {
   EmptyState,
   Screen,
@@ -25,6 +26,60 @@ const filters: { label: string; value: TicketStatus | "all" }[] = [
   { label: "Done", value: "done" },
 ];
 export default function TicketsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles((colors) => ({
+    addButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
+    searchRow: { position: "relative", flexDirection: "row", alignItems: "flex-start", gap: 8, zIndex: 10 },
+    searchField: { flex: 1, minWidth: 0 },
+    filterButton: {
+      width: 48,
+      height: 48,
+      marginBottom: 16,
+      borderRadius: radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+    },
+    filterButtonActive: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
+    filterMenu: {
+      position: "absolute",
+      top: 54,
+      right: 0,
+      width: 210,
+      padding: 6,
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      shadowColor: colors.ink,
+      shadowOpacity: 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 8,
+    },
+    menuItem: {
+      minHeight: 40,
+      paddingHorizontal: 12,
+      borderRadius: radius.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    menuItemActive: { backgroundColor: colors.charcoal },
+    menuText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+    menuTextActive: { color: "#fff" },
+    sort: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginBottom: 12,
+    },
+    sortLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+    sortIcon: { color: colors.green, fontSize: 16 },
+    list: { paddingBottom: tabBarInset },
+  }));
   const db = useSQLiteContext();
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -130,56 +185,3 @@ export default function TicketsScreen() {
     </Screen>
   );
 }
-const styles = StyleSheet.create({
-  addButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
-  searchRow: { position: "relative", flexDirection: "row", alignItems: "flex-start", gap: 8, zIndex: 10 },
-  searchField: { flex: 1, minWidth: 0 },
-  filterButton: {
-    width: 48,
-    height: 48,
-    marginBottom: 16,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-  },
-  filterButtonActive: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
-  filterMenu: {
-    position: "absolute",
-    top: 54,
-    right: 0,
-    width: 210,
-    padding: 6,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 8,
-  },
-  menuItem: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: radius.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  menuItemActive: { backgroundColor: colors.charcoal },
-  menuText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
-  menuTextActive: { color: "#fff" },
-  sort: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 12,
-  },
-  sortLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  sortIcon: { color: colors.green, fontSize: 16 },
-  list: { paddingBottom: tabBarInset },
-});

@@ -15,7 +15,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, radius, spacing } from "../constants/theme";
+import { radius, spacing } from "../constants/theme";
+import { useTheme, useThemedStyles } from "./ThemeProvider";
 
 type ClipboardEvent = {
   type: "clipboard";
@@ -43,6 +44,111 @@ if (Platform.OS !== "web") {
 }
 
 export function ClipboardNotifications() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles((colors) => ({
+    layer: {
+      ...StyleSheet.absoluteFill,
+      zIndex: 20,
+    },
+    bell: {
+      position: "absolute",
+      width: BELL_SIZE,
+      height: BELL_SIZE,
+      borderRadius: BELL_SIZE / 2,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      shadowColor: colors.ink,
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+    },
+    bellTouch: {
+      ...StyleSheet.absoluteFill,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    count: {
+      position: "absolute",
+      top: -3,
+      right: -3,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.orange,
+    },
+    countText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+    panel: {
+      position: "absolute",
+      width: 320,
+      maxWidth: "90%",
+      maxHeight: 430,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.lg,
+      shadowColor: colors.ink,
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+    },
+    panelHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      paddingBottom: spacing.md,
+    },
+    panelTitle: { color: colors.ink, fontSize: 17, fontWeight: "800" },
+    panelSubtitle: { color: colors.muted, fontSize: 11, marginTop: 3 },
+    empty: { color: colors.muted, fontSize: 13, paddingVertical: spacing.lg },
+    notification: {
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      backgroundColor: colors.canvas,
+      borderRadius: radius.md,
+    },
+    notificationText: { color: colors.ink, fontSize: 14, lineHeight: 20 },
+    copyButton: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: spacing.sm,
+      paddingVertical: 4,
+    },
+    copyText: { color: colors.green, fontSize: 12, fontWeight: "800" },
+    pressed: { opacity: 0.65 },
+    toast: {
+      position: "absolute",
+      bottom: spacing.lg,
+      left: spacing.lg,
+      right: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      shadowColor: colors.ink,
+      shadowOpacity: 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+    },
+    toastText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  }));
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -546,164 +652,4 @@ export function ClipboardNotifications() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  layer: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 20,
-  },
-
-  bell: {
-    position: "absolute",
-    width: BELL_SIZE,
-    height: BELL_SIZE,
-    borderRadius: BELL_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    elevation: 4,
-  },
-
-  bellTouch: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  count: {
-    position: "absolute",
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.orange,
-  },
-
-  countText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-
-  panel: {
-    position: "absolute",
-    width: 320,
-    maxWidth: "90%",
-    maxHeight: 430,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 8,
-  },
-
-  panelHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingBottom: spacing.md,
-  },
-
-  panelTitle: {
-    color: colors.ink,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-
-  panelSubtitle: {
-    color: colors.muted,
-    fontSize: 11,
-    marginTop: 3,
-  },
-
-  empty: {
-    color: colors.muted,
-    fontSize: 13,
-    paddingVertical: spacing.lg,
-  },
-
-  notification: {
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.canvas,
-    borderRadius: radius.md,
-  },
-
-  notificationText: {
-    color: colors.ink,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-
-  copyButton: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: spacing.sm,
-    paddingVertical: 4,
-  },
-
-  copyText: {
-    color: colors.green,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-
-  pressed: {
-    opacity: 0.65,
-  },
-
-  toast: {
-    position: "absolute",
-    bottom: spacing.lg,
-    left: spacing.lg,
-    right: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    elevation: 6,
-  },
-
-  toastText: {
-    color: colors.ink,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-});
 

@@ -2,15 +2,61 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { ConfirmDialog, TicketCard } from '../../components/ui';
 import { WorkloadGraph } from '../../components/WorkloadGraph';
-import { colors, radius, spacing } from '../../constants/theme';
+import { radius, spacing } from '../../constants/theme';
 import { deleteProject } from '../../lib/database';
 import type { Project, Ticket } from '../../types';
 
 export default function ProjectDetail() {
+  const { colors } = useTheme();
+  const s = useThemedStyles((colors) => ({
+    page: { flex: 1, backgroundColor: colors.canvas },
+    loading: { margin: 'auto', color: colors.muted },
+    nav: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: 10,
+      paddingBottom: 9,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderColor: colors.line,
+    },
+    iconButton: { padding: 7 },
+    navTitle: { color: colors.ink, fontWeight: '800', fontSize: 15 },
+    content: { padding: spacing.lg, paddingBottom: 40 },
+    name: { fontSize: 29, fontWeight: '800', color: colors.ink },
+    description: { color: colors.muted, lineHeight: 21, marginTop: 8 },
+    repo: { color: colors.green, fontSize: 13, marginTop: 12 },
+    counts: { flexDirection: 'row', gap: 8, marginTop: 20, marginBottom: 25 },
+    count: {
+      backgroundColor: colors.greenSoft,
+      color: colors.green,
+      fontSize: 12,
+      fontWeight: '800',
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: radius.pill,
+    },
+    heading: { color: colors.ink, fontWeight: '800', fontSize: 18, marginBottom: 12 },
+    deleteButton: {
+      borderWidth: 1,
+      borderColor: colors.redSoft,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 7,
+      backgroundColor: colors.redSoft,
+      marginTop: 18,
+    },
+    deleteText: { color: colors.red, fontWeight: '800' },
+  }));
   const { id } = useLocalSearchParams<{ id: string }>();
   const db = useSQLiteContext();
   const router = useRouter();
@@ -93,47 +139,3 @@ export default function ProjectDetail() {
   );
 }
 
-const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.canvas },
-  loading: { margin: 'auto', color: colors.muted },
-  nav: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 10,
-    paddingBottom: 9,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-  },
-  iconButton: { padding: 7 },
-  navTitle: { color: colors.ink, fontWeight: '800', fontSize: 15 },
-  content: { padding: spacing.lg, paddingBottom: 40 },
-  name: { fontSize: 29, fontWeight: '800', color: colors.ink },
-  description: { color: colors.muted, lineHeight: 21, marginTop: 8 },
-  repo: { color: colors.green, fontSize: 13, marginTop: 12 },
-  counts: { flexDirection: 'row', gap: 8, marginTop: 20, marginBottom: 25 },
-  count: {
-    backgroundColor: colors.greenSoft,
-    color: colors.green,
-    fontSize: 12,
-    fontWeight: '800',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-  },
-  heading: { color: colors.ink, fontWeight: '800', fontSize: 18, marginBottom: 12 },
-  deleteButton: {
-    borderWidth: 1,
-    borderColor: colors.redSoft,
-    borderRadius: radius.md,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    backgroundColor: colors.redSoft,
-    marginTop: 18,
-  },
-  deleteText: { color: colors.red, fontWeight: '800' },
-});

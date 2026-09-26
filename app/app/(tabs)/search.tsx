@@ -1,9 +1,10 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, tabBarInset } from '../../constants/theme';
+import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
+import { radius, spacing, tabBarInset } from '../../constants/theme';
 import { EmptyState, Screen, SearchInput, TicketCard } from '../../components/ui';
 import { relativeTime, titleCase } from '../../lib/format';
 import type { Ticket, WorkLog } from '../../types';
@@ -11,6 +12,47 @@ import type { Ticket, WorkLog } from '../../types';
 type SearchResult = Ticket & { logs: WorkLog[] };
 
 export default function SearchScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles((colors) => ({
+    hint: { color: colors.muted, fontSize: 12, marginBottom: 12 },
+    list: { paddingBottom: tabBarInset },
+    result: { marginBottom: spacing.sm },
+    logsToggle: {
+      minHeight: 54,
+      paddingHorizontal: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      marginBottom: spacing.sm,
+    },
+    logsToggleLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    logsToggleIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
+    logsToggleText: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+    logsToggleMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
+    logs: {
+      marginTop: 0,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+    },
+    logsTitle: { color: colors.muted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: spacing.xs },
+    log: { paddingVertical: spacing.md, paddingLeft: spacing.md, borderLeftColor: colors.greenSoft, borderLeftWidth: 2 },
+    logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    logTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    logDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.green },
+    logType: { color: colors.green, fontSize: 11, fontWeight: '800' },
+    logDate: { color: colors.muted, fontSize: 11 },
+    logDescription: { color: colors.charcoal, fontSize: 13, lineHeight: 19, marginTop: 4 },
+    logNext: { color: colors.muted, fontSize: 12, marginTop: 5 },
+    pressed: { opacity: 0.65 },
+  }));
   const db = useSQLiteContext();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -147,43 +189,3 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  hint: { color: colors.muted, fontSize: 12, marginBottom: 12 },
-  list: { paddingBottom: tabBarInset },
-  result: { marginBottom: spacing.sm },
-  logsToggle: {
-    minHeight: 54,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
-  },
-  logsToggleLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  logsToggleIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
-  logsToggleText: { color: colors.ink, fontSize: 13, fontWeight: '800' },
-  logsToggleMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  logs: {
-    marginTop: 0,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.md,
-  },
-  logsTitle: { color: colors.muted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: spacing.xs },
-  log: { paddingVertical: spacing.md, paddingLeft: spacing.md, borderLeftColor: colors.greenSoft, borderLeftWidth: 2 },
-  logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  logTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  logDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.green },
-  logType: { color: colors.green, fontSize: 11, fontWeight: '800' },
-  logDate: { color: colors.muted, fontSize: 11 },
-  logDescription: { color: colors.charcoal, fontSize: 13, lineHeight: 19, marginTop: 4 },
-  logNext: { color: colors.muted, fontSize: 12, marginTop: 5 },
-  pressed: { opacity: 0.65 },
-});

@@ -3,11 +3,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MarkdownContent } from "../../components/MarkdownContent";
+import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog } from "../../components/ui";
-import { colors, radius, spacing } from "../../constants/theme";
+import { radius, spacing } from "../../constants/theme";
 import { generateLogSummary } from "../../lib/api";
 import { deleteWorkLog } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
@@ -24,7 +25,48 @@ type LogDetail = WorkLog & {
   repository_url: string;
 };
 
+function useLogDetailStyles() {
+  return useThemedStyles((colors) => ({
+    page: { flex: 1, backgroundColor: colors.canvas },
+    loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
+    loadingText: { color: colors.muted },
+    nav: { paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomColor: colors.line, borderBottomWidth: 1 },
+    navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+    iconButton: { padding: 7 },
+    navSpacer: { width: 36 },
+    content: { padding: spacing.lg, paddingBottom: 45 },
+    ticketLink: { paddingBottom: 22 },
+    ticketKey: { color: colors.green, fontSize: 12, fontWeight: "800", letterSpacing: 1 },
+    ticketTitle: { color: colors.ink, fontSize: 24, lineHeight: 29, fontWeight: "800", marginTop: 7 },
+    project: { color: colors.muted, marginTop: 5 },
+    metaRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 24 },
+    typeBadge: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+    typeText: { color: colors.green, fontSize: 12, fontWeight: "800" },
+    summarizeButton: { backgroundColor: colors.violet, borderRadius: radius.md, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
+    summarizeButtonDisabled: { opacity: 0.75 },
+    summarizeButtonText: { color: "#fff", fontWeight: "800" },
+    summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
+    summaryBox: { backgroundColor: colors.violetSoft, borderRadius: radius.md, padding: 16 },
+    date: { color: colors.muted, fontSize: 12 },
+    section: { marginTop: 12, marginBottom: 13 },
+    sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", marginBottom: 10 },
+    body: { color: colors.charcoal, fontSize: 15, lineHeight: 23 },
+    nextBox: { flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: 15 },
+    nextText: { color: colors.charcoal, flex: 1, fontSize: 14, lineHeight: 21 },
+    commit: { color: colors.violet, fontFamily: "monospace", fontSize: 14 },
+    filePath: {
+      color: colors.charcoal,
+      fontFamily: "monospace",
+      fontSize: 13,
+      lineHeight: 21,
+      marginBottom: 4,
+    },
+  }));
+}
+
 export default function LogDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useLogDetailStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const db = useSQLiteContext();
@@ -202,6 +244,7 @@ export default function LogDetailScreen() {
 }
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useLogDetailStyles();
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -210,39 +253,3 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
   );
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.canvas },
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
-  loadingText: { color: colors.muted },
-  nav: { paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomColor: colors.line, borderBottomWidth: 1 },
-  navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
-  iconButton: { padding: 7 },
-  navSpacer: { width: 36 },
-  content: { padding: spacing.lg, paddingBottom: 45 },
-  ticketLink: { paddingBottom: 22 },
-  ticketKey: { color: colors.green, fontSize: 12, fontWeight: "800", letterSpacing: 1 },
-  ticketTitle: { color: colors.ink, fontSize: 24, lineHeight: 29, fontWeight: "800", marginTop: 7 },
-  project: { color: colors.muted, marginTop: 5 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 24 },
-  typeBadge: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
-  typeText: { color: colors.green, fontSize: 12, fontWeight: "800" },
-  summarizeButton: { backgroundColor: colors.violet, borderRadius: radius.md, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
-  summarizeButtonDisabled: { opacity: 0.75 },
-  summarizeButtonText: { color: "#fff", fontWeight: "800" },
-  summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
-  summaryBox: { backgroundColor: colors.violetSoft, borderRadius: radius.md, padding: 16 },
-  date: { color: colors.muted, fontSize: 12 },
-  section: { marginTop: 12, marginBottom: 13 },
-  sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", marginBottom: 10 },
-  body: { color: colors.charcoal, fontSize: 15, lineHeight: 23 },
-  nextBox: { flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: 15 },
-  nextText: { color: colors.charcoal, flex: 1, fontSize: 14, lineHeight: 21 },
-  commit: { color: colors.violet, fontFamily: "monospace", fontSize: 14 },
-  filePath: {
-    color: colors.charcoal,
-    fontFamily: "monospace",
-    fontSize: 13,
-    lineHeight: 21,
-    marginBottom: 4,
-  },
-});

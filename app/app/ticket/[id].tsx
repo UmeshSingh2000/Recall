@@ -8,15 +8,15 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MarkdownContent } from "../../components/MarkdownContent";
+import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
-import { colors, radius, spacing } from "../../constants/theme";
+import { radius, spacing } from "../../constants/theme";
 import { generateTicketSummary } from "../../lib/api";
 import { deleteTicket } from "../../lib/database";
 import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
@@ -43,7 +43,207 @@ const statusOptions: { label: string; value: TicketStatus }[] = [
   { label: "Blocked", value: "blocked" },
 ];
 
+function useTicketDetailStyles() {
+  return useThemedStyles((colors) => ({
+    page: { flex: 1, backgroundColor: colors.canvas },
+    keyboard: { flex: 1 },
+    nav: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: 10,
+      paddingBottom: 9,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderBottomColor: colors.line,
+      borderBottomWidth: 1,
+      backgroundColor: colors.canvas,
+    },
+    navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+    navActions: { flexDirection: "row", alignItems: "center" },
+    iconButton: { padding: 7 },
+    content: { padding: spacing.lg, paddingBottom: 45 },
+    loading: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.canvas,
+    },
+    ticketHeader: { paddingBottom: 23 },
+    key: {
+      color: colors.green,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1,
+    },
+    title: {
+      color: colors.ink,
+      fontSize: 27,
+      lineHeight: 32,
+      fontWeight: "800",
+      marginTop: 7,
+    },
+    project: { color: colors.muted, marginTop: 5 },
+    badges: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "center",
+      marginTop: 16,
+    },
+    statusOptions: { gap: 8, paddingBottom: 2 },
+    statusOption: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+    },
+    statusOptionSelected: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
+    statusOptionText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+    statusOptionTextSelected: { color: "#fff" },
+    summarizeButton: {
+      backgroundColor: colors.violet,
+      borderRadius: radius.md,
+      padding: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginBottom: 8,
+    },
+    summarizeButtonDisabled: { opacity: 0.75 },
+    summarizeButtonText: { color: "#fff", fontWeight: "800" },
+    summaryBox: {
+      backgroundColor: colors.violetSoft,
+      borderRadius: radius.md,
+      padding: 16,
+    },
+    summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
+    section: { marginTop: 12, marginBottom: 12 },
+    sectionTitle: {
+      color: colors.ink,
+      fontSize: 18,
+      fontWeight: "800",
+      marginBottom: 11,
+    },
+    body: { color: colors.charcoal, lineHeight: 22, fontSize: 14 },
+    session: {
+      backgroundColor: colors.hero,
+      borderColor: colors.heroBorder,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      padding: 16,
+    },
+    sessionPressed: { opacity: 0.86 },
+    sessionKicker: {
+      color: colors.heroKicker,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 0.8,
+    },
+    sessionText: { color: colors.heroText, lineHeight: 21, marginTop: 9, fontSize: 14 },
+    sessionRemain: { color: colors.heroSubtext, fontSize: 12, marginTop: 10 },
+    field: {
+      borderBottomColor: colors.line,
+      borderBottomWidth: 1,
+      paddingVertical: 11,
+    },
+    fieldLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+    fieldInput: {
+      color: colors.charcoal,
+      fontSize: 14,
+      lineHeight: 20,
+      marginTop: 5,
+      padding: 0,
+    },
+    progress: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      paddingHorizontal: 15,
+    },
+    progressRow: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "center",
+      paddingVertical: 13,
+      borderBottomColor: colors.line,
+      borderBottomWidth: 1,
+    },
+    progressText: { color: colors.charcoal, fontSize: 14, flex: 1 },
+    completed: { color: colors.muted, textDecorationLine: "line-through" },
+    nextBox: {
+      backgroundColor: colors.greenSoft,
+      borderRadius: radius.md,
+      padding: 16,
+    },
+    nextKicker: {
+      color: colors.green,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 1,
+    },
+    nextInput: {
+      color: colors.ink,
+      fontSize: 16,
+      fontWeight: "700",
+      lineHeight: 22,
+      paddingTop: 8,
+    },
+    log: { flexDirection: "row", gap: 12, marginBottom: 17 },
+    logPressed: { opacity: 0.7 },
+    logDot: {
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+      backgroundColor: colors.green,
+      marginTop: 5,
+    },
+    logMain: { flex: 1 },
+    logDate: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+    logText: { color: colors.charcoal, lineHeight: 20, marginTop: 5 },
+    commit: {
+      color: colors.violet,
+      fontSize: 12,
+      fontFamily: "monospace",
+      marginTop: 5,
+    },
+    muted: { color: colors.muted, lineHeight: 20 },
+    actions: { gap: 10, marginTop: 13 },
+    logButton: {
+      backgroundColor: colors.green,
+      borderRadius: radius.md,
+      padding: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    logButtonText: { color: "#fff", fontWeight: "800" },
+    secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 14, alignItems: "center", backgroundColor: colors.surface },
+    secondaryText: { color: colors.charcoal, fontWeight: "800" },
+    doneButton: { borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 14, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
+    doneText: { color: colors.green, fontWeight: "800" },
+    deleteButton: {
+      borderWidth: 1,
+      borderColor: colors.redSoft,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 7,
+      backgroundColor: colors.redSoft,
+      marginTop: 4,
+    },
+    deleteText: { color: colors.red, fontWeight: "800" },
+  }));
+}
+
 export default function TicketDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useTicketDetailStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const db = useSQLiteContext();
@@ -410,6 +610,7 @@ function Section({
   title: string;
   children: React.ReactNode;
 }) {
+  const styles = useTicketDetailStyles();
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -428,6 +629,8 @@ function ContextField({
   onChangeText: (value: string) => void;
   onBlur: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useTicketDetailStyles();
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -443,196 +646,3 @@ function ContextField({
     </View>
   );
 }
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.canvas },
-  keyboard: { flex: 1 },
-  nav: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 10,
-    paddingBottom: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-    backgroundColor: colors.canvas,
-  },
-  navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
-  navActions: { flexDirection: "row", alignItems: "center" },
-  iconButton: { padding: 7 },
-  content: { padding: spacing.lg, paddingBottom: 45 },
-  loading: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.canvas,
-  },
-  ticketHeader: { paddingBottom: 23 },
-  key: {
-    color: colors.green,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 27,
-    lineHeight: 32,
-    fontWeight: "800",
-    marginTop: 7,
-  },
-  project: { color: colors.muted, marginTop: 5 },
-  badges: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  statusOptions: { gap: 8, paddingBottom: 2 },
-  statusOption: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  statusOptionSelected: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
-  statusOptionText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  statusOptionTextSelected: { color: "#fff" },
-  summarizeButton: {
-    backgroundColor: colors.violet,
-    borderRadius: radius.md,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  summarizeButtonDisabled: { opacity: 0.75 },
-  summarizeButtonText: { color: "#fff", fontWeight: "800" },
-  summaryBox: {
-    backgroundColor: colors.violetSoft,
-    borderRadius: radius.md,
-    padding: 16,
-  },
-  summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
-  section: { marginTop: 12, marginBottom: 12 },
-  sectionTitle: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 11,
-  },
-  body: { color: colors.charcoal, lineHeight: 22, fontSize: 14 },
-  session: {
-    backgroundColor: colors.charcoal,
-    borderRadius: radius.md,
-    padding: 16,
-  },
-  sessionPressed: { opacity: 0.86 },
-  sessionKicker: {
-    color: "#8BD7B8",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-  },
-  sessionText: { color: "#fff", lineHeight: 21, marginTop: 9, fontSize: 14 },
-  sessionRemain: { color: "#B6C4C4", fontSize: 12, marginTop: 10 },
-  field: {
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-    paddingVertical: 11,
-  },
-  fieldLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  fieldInput: {
-    color: colors.charcoal,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 5,
-    padding: 0,
-  },
-  progress: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: 15,
-  },
-  progressRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-  },
-  progressText: { color: colors.charcoal, fontSize: 14, flex: 1 },
-  completed: { color: colors.muted, textDecorationLine: "line-through" },
-  nextBox: {
-    backgroundColor: colors.greenSoft,
-    borderRadius: radius.md,
-    padding: 16,
-  },
-  nextKicker: {
-    color: colors.green,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  nextInput: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 22,
-    paddingTop: 8,
-  },
-  log: { flexDirection: "row", gap: 12, marginBottom: 17 },
-  logPressed: { opacity: 0.7 },
-  logDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: colors.green,
-    marginTop: 5,
-  },
-  logMain: { flex: 1 },
-  logDate: { color: colors.muted, fontSize: 11, fontWeight: "800" },
-  logText: { color: colors.charcoal, lineHeight: 20, marginTop: 5 },
-  commit: {
-    color: colors.violet,
-    fontSize: 12,
-    fontFamily: "monospace",
-    marginTop: 5,
-  },
-  muted: { color: colors.muted, lineHeight: 20 },
-  actions: { gap: 10, marginTop: 13 },
-  logButton: {
-    backgroundColor: colors.green,
-    borderRadius: radius.md,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  logButtonText: { color: "#fff", fontWeight: "800" },
-  secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 14, alignItems: 'center', backgroundColor: colors.surface },
-  secondaryText: { color: colors.charcoal, fontWeight: '800' },
-  doneButton: { borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
-  doneText: { color: colors.green, fontWeight: '800' },
-  deleteButton: {
-    borderWidth: 1,
-    borderColor: colors.redSoft,
-    borderRadius: radius.md,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    backgroundColor: colors.redSoft,
-    marginTop: 4,
-  },
-  deleteText: { color: colors.red, fontWeight: '800' },
-});

@@ -2,16 +2,42 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TicketDeck } from "../../components/TicketDeck";
 import { WorkloadGraph } from "../../components/WorkloadGraph";
 import { SectionHeading, TicketCard } from "../../components/ui";
-import { colors, radius, spacing, tabBarInset } from "../../constants/theme";
+import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
+import { radius, spacing, tabBarInset } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
 import type { Ticket } from "../../types";
 
 export default function TabOneScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles((colors) => ({
+    safe: { flex: 1, backgroundColor: colors.canvas },
+    scroll: { flex: 1, backgroundColor: colors.canvas },
+    content: { padding: spacing.lg, paddingBottom: tabBarInset },
+    greeting: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginBottom: 20 },
+    eyebrow: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+    heading: { color: colors.ink, fontSize: 30, fontWeight: "800", marginTop: 5 },
+    subheading: { color: colors.muted, fontSize: 14, marginTop: 4 },
+    avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.charcoal, justifyContent: "center", alignItems: "center" },
+    avatarText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+    stats: { flexDirection: "row", gap: 10, marginBottom: 22 },
+    stat: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, flex: 1, padding: 13 },
+    statLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+    statValue: { fontSize: 25, fontWeight: "800", marginTop: 6 },
+    muted: { color: colors.muted, paddingBottom: 20 },
+    recent: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, padding: 14, borderRadius: radius.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
+    recentMain: { flex: 1, minWidth: 0 },
+    recentKey: { color: colors.green, fontSize: 11, fontWeight: "800" },
+    recentTitle: { color: colors.ink, fontWeight: "700", marginTop: 4 },
+    recentTime: { color: colors.muted, fontSize: 12, flexShrink: 0, marginLeft: spacing.md },
+    quickRow: { flexDirection: "row", gap: 10, marginTop: 13 },
+    quick: { backgroundColor: colors.greenSoft, flex: 1, borderRadius: radius.md, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+    quickText: { color: colors.green, fontWeight: "800", fontSize: 13 },
+  }));
   const db = useSQLiteContext();
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -95,27 +121,3 @@ export default function TabOneScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas },
-  scroll: { flex: 1, backgroundColor: colors.canvas },
-  content: { padding: spacing.lg, paddingBottom: tabBarInset },
-  greeting: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginBottom: 20 },
-  eyebrow: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  heading: { color: colors.ink, fontSize: 30, fontWeight: "800", marginTop: 5 },
-  subheading: { color: colors.muted, fontSize: 14, marginTop: 4 },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.charcoal, justifyContent: "center", alignItems: "center" },
-  avatarText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  stats: { flexDirection: "row", gap: 10, marginBottom: 22 },
-  stat: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, flex: 1, padding: 13 },
-  statLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
-  statValue: { fontSize: 25, fontWeight: "800", marginTop: 6 },
-  muted: { color: colors.muted, paddingBottom: 20 },
-  recent: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, padding: 14, borderRadius: radius.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
-  recentMain: { flex: 1, minWidth: 0 },
-  recentKey: { color: colors.green, fontSize: 11, fontWeight: "800" },
-  recentTitle: { color: colors.ink, fontWeight: "700", marginTop: 4 },
-  recentTime: { color: colors.muted, fontSize: 12, flexShrink: 0, marginLeft: spacing.md },
-  quickRow: { flexDirection: "row", gap: 10, marginTop: 13 },
-  quick: { backgroundColor: colors.greenSoft, flex: 1, borderRadius: radius.md, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  quickText: { color: colors.green, fontWeight: "800", fontSize: 13 },
-});

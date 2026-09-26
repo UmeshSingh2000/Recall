@@ -6,16 +6,18 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, radius, spacing } from "../constants/theme";
+import { useModalScreenStyles } from "../components/modalScreenStyles";
+import { useTheme } from "../components/ThemeProvider";
 import type { Project, Ticket } from "../types";
 
 export default function EditTicketScreen() {
+  const { colors } = useTheme();
+  const styles = useModalScreenStyles();
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
   const db = useSQLiteContext();
   const router = useRouter();
@@ -188,70 +190,3 @@ export default function EditTicketScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.canvas },
-  keyboard: { flex: 1 },
-  loading: {
-    flex: 1,
-    color: colors.muted,
-    textAlign: "center",
-    paddingTop: spacing.lg,
-  },
-  nav: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: 14,
-    paddingBottom: 13,
-    borderBottomColor: colors.line,
-    borderBottomWidth: 1,
-  },
-  cancel: { color: colors.muted },
-  navTitle: { color: colors.ink, fontWeight: "800", fontSize: 16 },
-  navSpacer: { width: 52 },
-  content: { padding: spacing.lg, paddingBottom: 40 },
-  label: {
-    color: colors.ink,
-    fontWeight: "800",
-    fontSize: 13,
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    color: colors.ink,
-    fontSize: 15,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-  },
-  large: { minHeight: 105, textAlignVertical: "top" },
-  projects: { flexGrow: 0 },
-  project: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    marginRight: 7,
-  },
-  projectSelected: {
-    backgroundColor: colors.charcoal,
-    borderColor: colors.charcoal,
-  },
-  projectText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  projectTextSelected: { color: "#fff" },
-  button: {
-    backgroundColor: colors.green,
-    borderRadius: radius.md,
-    alignItems: "center",
-    paddingVertical: 15,
-    marginTop: 28,
-  },
-  buttonDisabled: { backgroundColor: colors.line },
-  buttonText: { color: "#fff", fontWeight: "800" },
-});

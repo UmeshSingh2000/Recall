@@ -1,9 +1,61 @@
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing } from '../constants/theme';
+import { useModalScreenStyles } from '../components/modalScreenStyles';
+import { useTheme } from '../components/ThemeProvider';
 
-export default function NewProject() { const db=useSQLiteContext(); const router=useRouter(); const [name,setName]=useState(''); const [description,setDescription]=useState(''); const [repo,setRepo]=useState(''); const [saving,setSaving]=useState(false); const save=async()=>{if(!name.trim()||saving)return;setSaving(true);try{const now=new Date().toISOString();const r=await db.runAsync('INSERT INTO projects (name, description, repository_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',name.trim(),description.trim(),repo.trim(),now,now);router.replace(`/project/${r.lastInsertRowId}` as any)}finally{setSaving(false)}};return <SafeAreaView style={s.page} edges={['top','bottom']}><KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS==='ios'?'padding':'height'}><View style={s.nav}><Pressable onPress={()=>router.back()}><Text style={s.cancel}>Cancel</Text></Pressable><Text style={s.title}>New project</Text><View style={{width:45}}/></View><ScrollView contentContainerStyle={s.content}><Text style={s.intro}>Projects keep your ticket context organized.</Text><Text style={s.label}>Project name</Text><TextInput autoFocus value={name} onChangeText={setName} placeholder="e.g. Atlas Platform" placeholderTextColor={colors.muted} style={s.input}/><Text style={s.label}>Description</Text><TextInput value={description} onChangeText={setDescription} multiline placeholder="What does this project own?" placeholderTextColor={colors.muted} style={[s.input,s.multiline]}/><Text style={s.label}>Repository URL <Text style={s.optional}>Optional</Text></Text><TextInput value={repo} onChangeText={setRepo} autoCapitalize="none" placeholder="https://github.com/org/repo" placeholderTextColor={colors.muted} style={s.input}/><Pressable style={[s.button,!name.trim()&&s.disabled]} disabled={!name.trim()} onPress={save}><Text style={s.buttonText}>{saving?'Creating...':'Create project'}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>}
-const s=StyleSheet.create({page:{flex:1,backgroundColor:colors.canvas},keyboard:{flex:1},nav:{padding:spacing.lg,flexDirection:'row',justifyContent:'space-between',borderBottomWidth:1,borderColor:colors.line},cancel:{color:colors.muted},title:{fontWeight:'800',color:colors.ink},content:{padding:spacing.lg},intro:{color:colors.muted,lineHeight:20},label:{color:colors.ink,fontWeight:'800',fontSize:13,marginTop:18,marginBottom:8},optional:{fontSize:11,color:colors.muted},input:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.line,borderRadius:radius.md,color:colors.ink,padding:13,fontSize:15},multiline:{minHeight:100,textAlignVertical:'top'},button:{backgroundColor:colors.green,borderRadius:radius.md,alignItems:'center',padding:15,marginTop:28},disabled:{backgroundColor:colors.line},buttonText:{color:'#fff',fontWeight:'800'}});
+export default function NewProject() {
+  const db = useSQLiteContext();
+  const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useModalScreenStyles();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [repo, setRepo] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const r = await db.runAsync(
+        'INSERT INTO projects (name, description, repository_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        name.trim(),
+        description.trim(),
+        repo.trim(),
+        now,
+        now,
+      );
+      router.replace(`/project/${r.lastInsertRowId}` as any);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.page} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.nav}>
+          <Pressable onPress={() => router.back()}><Text style={styles.cancel}>Cancel</Text></Pressable>
+          <Text style={styles.navTitle}>New project</Text>
+          <View style={{ width: 45 }} />
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.intro}>Projects keep your ticket context organized.</Text>
+          <Text style={styles.label}>Project name</Text>
+          <TextInput autoFocus value={name} onChangeText={setName} placeholder="e.g. Atlas Platform" placeholderTextColor={colors.muted} style={styles.input} />
+          <Text style={styles.label}>Description</Text>
+          <TextInput value={description} onChangeText={setDescription} multiline placeholder="What does this project own?" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} />
+          <Text style={styles.label}>Repository URL <Text style={styles.optional}>Optional</Text></Text>
+          <TextInput value={repo} onChangeText={setRepo} autoCapitalize="none" placeholder="https://github.com/org/repo" placeholderTextColor={colors.muted} style={styles.input} />
+          <Pressable style={[styles.button, !name.trim() && styles.buttonDisabled]} disabled={!name.trim()} onPress={save}>
+            <Text style={styles.buttonText}>{saving ? 'Creating...' : 'Create project'}</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
