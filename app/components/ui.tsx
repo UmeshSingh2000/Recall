@@ -180,7 +180,7 @@ function useUiStyles() {
 
 function statusTone(colors: ThemeColors, status: Ticket["status"]) {
   return {
-    in_progress: [colors.greenSoft, colors.green],
+    in_progress: [colors.greenSoft, colors.heroKicker],
     paused: [colors.orangeSoft, colors.orange],
     blocked: [colors.redSoft, colors.red],
     review: [colors.violetSoft, colors.violet],
@@ -188,7 +188,7 @@ function statusTone(colors: ThemeColors, status: Ticket["status"]) {
     code_review: [colors.blueSoft, colors.blue],
     testing: [colors.orangeSoft, colors.orange],
     live: [colors.greenSoft, colors.green],
-    done: [colors.blueSoft, colors.blue],
+    done: [colors.greenSoft, colors.green],
   }[status];
 }
 

@@ -61,9 +61,9 @@ export function WorkloadGraph({
 
   const total = active + paused + done;
   const segments: Segment[] = [
-    { label: "Active", count: active, color: colors.green },
+    { label: "Active", count: active, color: colors.heroKicker },
     { label: "Paused", count: paused, color: colors.orange },
-    { label: "Done", count: done, color: colors.blue },
+    { label: "Done", count: done, color: colors.green },
   ];
 
   return (
