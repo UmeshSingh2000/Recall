@@ -4,6 +4,7 @@ import type { BottomTabBarProps } from 'expo-router/build/react-navigation/botto
 import { useEffect } from 'react';
 import { Dimensions, Platform, Pressable, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Extrapolation,
   interpolate,
   interpolateColor,
@@ -29,16 +30,13 @@ const PILL_WIDTH = 58;
 const PILL_HEIGHT = 50;
 const ICON_SIZE = 17;
 const TABS_PADDING_H = 8;
-/** Soft, overshooting spring — fractional index drives stretch while it moves. */
+/** Soft spring for sliding the active pill between tabs. */
 const PILL_SPRING = {
   damping: 13,
   stiffness: 118,
   mass: 0.9,
   overshootClamping: false,
 };
-
-const MAX_STRETCH_X = 0.38;
-const STRETCH_CURVE = 0.72;
 
 function estimatedSlotWidth(tabCount: number) {
   const barWidth = Math.min(Dimensions.get('window').width - 84, 340);
@@ -119,6 +117,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const slotWidth = useSharedValue(estimatedSlotWidth(state.routes.length));
 
   useEffect(() => {
+    cancelAnimation(activeIndex);
     activeIndex.value = withSpring(state.index, PILL_SPRING);
   }, [state.index, activeIndex]);
 
@@ -214,14 +213,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
     const index = activeIndex.value;
     const x = index * w + (w - PILL_WIDTH) / 2;
 
-    const nearest = Math.round(index);
-    const offset = index - nearest;
-    const stretchAmount = Math.min(Math.abs(offset) * STRETCH_CURVE, MAX_STRETCH_X);
-    const scaleX = 1 + stretchAmount;
-    const scaleY = 1 - stretchAmount * 0.4;
-
     return {
-      transform: [{ translateX: x }, { scaleX }, { scaleY }],
+      transform: [{ translateX: x }],
     };
   });
 
