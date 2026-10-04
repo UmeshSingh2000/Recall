@@ -116,3 +116,23 @@ export async function generateLogSummary(payload: GenerateLogSummaryPayload) {
 
   return result.summary.trim();
 }
+
+const AUTH_TOKEN_KEY = "recall.auth_token";
+
+export async function hasAuthToken() {
+  const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+  return Boolean(token?.trim());
+}
+
+export async function clearAuthToken() {
+  await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+}
+
+export async function saveAuthToken(token: string) {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    await clearAuthToken();
+    return;
+  }
+  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, trimmed);
+}

@@ -1,4 +1,6 @@
-import { Stack } from "expo-router";
+import "@/lib/crypto-polyfill";
+import "react-native-reanimated";
+import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
@@ -9,28 +11,46 @@ import { GitCommitListener } from "../components/GitCommitListener";
 import { ThemeProvider, useTheme, useThemedStyles } from "../components/ThemeProvider";
 import { spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
+import AuthProvider, { useAuth } from "@/components/AuthContext";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+
+function AuthenticatedDatabaseExtras() {
+  return (
+    <>
+      <ClipboardNotifications />
+      <GitCommitListener />
+    </>
+  );
+}
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <SQLiteProvider databaseName="recall.db" onInit={initializeDatabase}>
-        <ThemeProvider>
-          <ThemedStatusBar />
-          <DatabaseGate>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="ticket/[id]" options={{ presentation: "card" }} />
-            <Stack.Screen name="log/[id]" options={{ presentation: "card" }} />
-            <Stack.Screen name="log-progress" options={{ presentation: "modal" }} />
-            <Stack.Screen name="edit-ticket" options={{ presentation: "modal" }} />
-            <Stack.Screen name="switch-work" options={{ presentation: "modal" }} />
-            <Stack.Screen name="new-ticket" options={{ presentation: "modal" }} />
-            <Stack.Screen name="new-project" options={{ presentation: "modal" }} />
-            <Stack.Screen name="project/[id]" options={{ presentation: "card" }} />
-          </Stack>
-          </DatabaseGate>
-        </ThemeProvider>
-      </SQLiteProvider>
+      <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+        <SQLiteProvider databaseName="recall.db" onInit={initializeDatabase}>
+          <ThemeProvider>
+            <AuthProvider>
+              <AuthGate>
+                <ThemedStatusBar />
+                <DatabaseGate>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="ticket/[id]" options={{ presentation: "card" }} />
+                    <Stack.Screen name="log/[id]" options={{ presentation: "card" }} />
+                    <Stack.Screen name="log-progress" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="edit-ticket" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="switch-work" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="new-ticket" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="new-project" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="project/[id]" options={{ presentation: "card" }} />
+                  </Stack>
+                </DatabaseGate>
+              </AuthGate>
+            </AuthProvider>
+          </ThemeProvider>
+        </SQLiteProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }
@@ -41,6 +61,7 @@ function ThemedStatusBar() {
 }
 
 function DatabaseGate({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const db = useSQLiteContext();
   const styles = useThemedStyles((colors) => ({
     loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
@@ -51,21 +72,35 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
     spinner: { marginTop: spacing.lg },
   }));
   const { colors } = useTheme();
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(!isAuthenticated);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setReady(true);
+      return;
+    }
+
     let mounted = true;
+    setReady(false);
     Promise.all([
       db.getAllAsync("SELECT * FROM projects"),
       db.getAllAsync("SELECT * FROM tickets"),
       db.getAllAsync("SELECT * FROM work_logs"),
-    ]).finally(() => {
-      if (mounted) setReady(true);
-    });
+    ])
+      .catch((error) => {
+        console.warn("Database warmup failed:", error);
+      })
+      .finally(() => {
+        if (mounted) setReady(true);
+      });
     return () => {
       mounted = false;
     };
-  }, [db]);
+  }, [db, isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return <>{children}</>;
+  }
 
   if (!ready) {
     return (
@@ -83,9 +118,34 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <ClipboardNotifications />
-      <GitCommitListener />
+      <AuthenticatedDatabaseExtras />
     </>
   );
+}
+
+function AuthGate({ children}: {children: React.ReactNode}) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const navigationState = useRootNavigationState();
+
+  const inAuthGroup = segments[0] === "(auth)";
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!navigationState?.key) return; // router not ready
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace("/login");
+      return;
+    }
+    if (isAuthenticated && inAuthGroup) {
+      router.replace("/(tabs)");
+    }
+  }, [isLoading, isAuthenticated, inAuthGroup, navigationState?.key]);
+  if (isLoading) {
+    return null;
+  }
+
+  return <>{children}</>;
 }
 

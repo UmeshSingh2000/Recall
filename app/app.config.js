@@ -26,6 +26,8 @@ export default {
     },
 
     android: {
+      softwareKeyboardLayoutMode: "pan",
+
       googleServicesFile: isProduction ?
        "./google-services.json" : "./google-services.dev.json",
 
@@ -81,6 +83,9 @@ export default {
 
     extra: {
       router: {},
+      neonAuthUrl: process.env.NEON_AUTH_URL,
+      neonAuthCallbackUrl: process.env.EXPO_PUBLIC_NEON_AUTH_CALLBACK_URL,
+      neonAuthRequestOrigin: process.env.EXPO_PUBLIC_NEON_AUTH_ORIGIN,
       eas: {
         projectId: "376039da-5f94-4b16-bf6b-c5ae81d37f95",
       },

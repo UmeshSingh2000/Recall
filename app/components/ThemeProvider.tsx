@@ -28,10 +28,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [appearance, setAppearanceState] = useState<AppearancePreference>('system');
 
   useEffect(() => {
-    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', APPEARANCE_KEY).then((row) => {
-      const parsed = parseAppearance(row?.value);
-      if (parsed) setAppearanceState(parsed);
-    });
+    let active = true;
+    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', APPEARANCE_KEY)
+      .then((row) => {
+        if (!active) return;
+        const parsed = parseAppearance(row?.value);
+        if (parsed) setAppearanceState(parsed);
+      })
+      .catch((error) => {
+        console.warn('Unable to load appearance preference:', error);
+      });
+    return () => {
+      active = false;
+    };
   }, [db]);
 
   const setAppearance = useCallback(
