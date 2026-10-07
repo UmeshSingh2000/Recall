@@ -1,3 +1,4 @@
+import AppLoader from "@/components/AppLoader";
 import { useAuth } from "@/components/AuthContext";
 import { useTheme, useThemedStyles } from "@/components/ThemeProvider";
 import { radius, spacing } from "@/constants/theme";
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -16,6 +18,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const styles = useThemedStyles((c) => ({
     safe: { flex: 1, backgroundColor: c.canvas },
@@ -172,22 +175,53 @@ export default function LoginScreen() {
     },
   }));
 
-  const handleSignIn = async() => {
+  const handleSignIn = async () => {
+    if (loading) return;
+    if (!email || !password) {
+      Toast.show({
+        type: "error",
+        text1: "Please fill in all fields",
+      });
+      return;
+    }
     try {
-        const callbackURL = getAuthCallbackURL();
-        console.log("Attempting sign up with email:", email, "and password:", password);
-        console.log("Using auth callback URL:", callbackURL);
-        const response = await authClient.signIn.email({
-            email, 
-            password,
-            callbackURL,
-        })
-        console.log("Sign up response:", response);
+      setLoading(true);
+      const response = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: getAuthCallbackURL(),
+      });
+      if (response?.error) {
+        Toast.show({
+          type: "error",
+          text1: "Error signing in",
+          text2: response.error.message || "Something went wrong",
+        });
+        return;
+      }
+      const token = response?.data?.token;
+      if (!token) {
+        Toast.show({
+          type: "error",
+          text1: "Error signing in",
+          text2: "Something went wrong",
+        });
+        return;
+      }
+      await login(token);
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Error signing in",
+        text2: error.message?.replace(/^\[body\.\w+\]\s*/, "") || "Something went wrong",
+      });
+    } finally {
+      setLoading(false);
     }
-    catch(error){
-        console.error("Sign up error:", error);
-    }
-    // router.push("/");
+  };
+
+  if (loading) {
+    return <AppLoader text="Signing you in..." subText="Please wait a moment" />;
   }
 
   return (

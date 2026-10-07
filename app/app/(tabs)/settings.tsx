@@ -6,6 +6,7 @@ import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useAuth } from "../../components/AuthContext";
 import { appearanceLabels, appearanceOptions, useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, Screen } from "../../components/ui";
 import { radius, tabBarInset } from "../../constants/theme";
@@ -15,6 +16,7 @@ import { deleteAllData } from "../../lib/database";
 
 export default function SettingsScreen() {
   const db = useSQLiteContext();
+  const { logout } = useAuth();
   const { appearance, setAppearance, colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
@@ -253,6 +255,16 @@ export default function SettingsScreen() {
           ))}
         </View>
         {status ? <Text style={styles.status}>{status}</Text> : null}
+
+        <Text style={styles.group}>ACCOUNT</Text>
+        <View style={styles.panel}>
+          <Pressable style={styles.row} onPress={() => logout()}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="log-out-outline" size={18} color={colors.red} />
+            </View>
+            <Text style={[styles.label, { color: colors.red }]}>Log out</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>

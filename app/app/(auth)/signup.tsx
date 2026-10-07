@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/AuthContext";
 import { useTheme, useThemedStyles } from "@/components/ThemeProvider";
 import { radius, spacing } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,13 +15,19 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { authClient } from "@/lib/neon";
+import { getAuthCallbackURL } from "@/lib/auth-callback-url";
+import Toast from 'react-native-toast-message';
+import AppLoader from "@/components/AppLoader";
 
 const OTP_LENGTH = 6;
 
 export default function SignupScreen() {
+  const { login } = useAuth();
   const { colors } = useTheme();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
@@ -165,9 +172,43 @@ export default function SignupScreen() {
     },
   }));
 
-  const handleContinue = () => {
-    setShowOtp(true);
-    setTimeout(() => otpRefs.current[0]?.focus(), 100);
+  const handleContinue = async() => {
+    if(loading) return;
+    if(!email || !password) {
+      Toast.show({
+        type: 'error',
+        text1: 'Please fill in all fields',
+      });
+      return;
+    }
+    try {
+      setLoading(true);
+      const callbackURL = getAuthCallbackURL();
+      const response = await authClient.signUp.email({
+        name: "Anonymous User",
+        email,
+        password,
+        callbackURL,
+      })
+      if(!response?.data?.user?.emailVerified) {
+        setShowOtp(true);
+        setTimeout(() => otpRefs.current[0]?.focus(), 100);
+        Toast.show({
+          type: 'success',
+          text1: 'Verification code sent to your email.',
+        });
+      }
+    }
+    catch(error: any){
+      Toast.show({
+        type: 'error',
+        text1: 'Error signing up',
+        text2: error.message?.replace(/^\[body\.\w+\]\s*/, '') || 'Something went wrong',
+      });
+    }
+    finally{
+      setLoading(false);
+    }
   };
 
   const updateOtpDigit = (index: number, value: string) => {
@@ -208,6 +249,72 @@ export default function SignupScreen() {
       otpRefs.current[index - 1]?.focus();
     }
   };
+
+  const handleVerify = async () => {
+    if (loading) return;
+    const code = otp.join("");
+    if (code.length !== OTP_LENGTH) {
+      Toast.show({
+        type: "error",
+        text1: "Enter the 6-digit code",
+      });
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await authClient.emailOtp.verifyEmail({
+        email,
+        otp: code,
+      });
+      if (response?.error) {
+        Toast.show({
+          type: "error",
+          text1: "Error verifying code",
+          text2: response.error.message || "Invalid verification code",
+        });
+        return;
+      }
+
+      let token: string | null = response?.data?.token ?? null;
+      if (!token) {
+        const signIn = await authClient.signIn.email({
+          email,
+          password,
+          callbackURL: getAuthCallbackURL(),
+        });
+        token = signIn?.data?.token ?? null;
+        if (signIn?.error || !token) {
+          Toast.show({
+            type: "error",
+            text1: "Error verifying code",
+            text2: signIn?.error?.message || "Invalid verification code",
+          });
+          return;
+        }
+      }
+
+      await login(token);
+    }
+    catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Error verifying code",
+        text2: error.message?.replace(/^\[body\.\w+\]\s*/, "") || "Something went wrong",
+      });
+    }
+    finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLoader
+        text={showOtp ? "Verifying your code..." : "Sending verification code..."}
+        subText="Please wait a moment"
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -313,7 +420,7 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            <Pressable accessibilityRole="button" style={styles.primaryButton}>
+            <Pressable onPress={handleVerify} accessibilityRole="button" style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>Verify</Text>
             </Pressable>
 

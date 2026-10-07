@@ -4,8 +4,8 @@ import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-rout
 import { StatusBar } from "expo-status-bar";
 import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ClipboardNotifications } from "../components/ClipboardNotifications";
 import { GitCommitListener } from "../components/GitCommitListener";
 import { ThemeProvider, useTheme, useThemedStyles } from "../components/ThemeProvider";
@@ -13,6 +13,17 @@ import { spacing } from "../constants/theme";
 import { initializeDatabase } from "../lib/database";
 import AuthProvider, { useAuth } from "@/components/AuthContext";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import Toast from 'react-native-toast-message';
+
+function RootToast() {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View pointerEvents="box-none" style={styles.toastHost}>
+      <Toast topOffset={insets.top + 8} />
+    </View>
+  );
+}
 
 function AuthenticatedDatabaseExtras() {
   return (
@@ -51,6 +62,7 @@ export default function RootLayout() {
           </ThemeProvider>
         </SQLiteProvider>
       </KeyboardProvider>
+      <RootToast />
     </SafeAreaProvider>
   );
 }
@@ -148,4 +160,15 @@ function AuthGate({ children}: {children: React.ReactNode}) {
 
   return <>{children}</>;
 }
+
+const styles = StyleSheet.create({
+  toastHost: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+});
 
