@@ -18,3 +18,7 @@ export function requireApiToken(req, res, next) {
 
   next();
 }
+export function requireV2ApiToken(req, res, next) {
+
+}
+
