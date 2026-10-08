@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useEffect } from 'react';
@@ -240,7 +241,10 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
               const baseIcon = TAB_ICONS[route.name] ?? 'ellipse';
               const iconName = (isFocused ? baseIcon : `${baseIcon}-outline`) as keyof typeof Ionicons.glyphMap;
 
-              const onPress = () => {
+              const onPress = async() => {
+                await Haptics.impactAsync(
+                  Haptics.ImpactFeedbackStyle.Medium
+                );
                 const event = navigation.emit({
                   type: 'tabPress',
                   target: route.key,
