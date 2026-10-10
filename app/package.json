@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "@neondatabase/neon-js": "^0.7.0-beta",
+    "axios": "^1.20.0",
     "expo": "~57.0.21",
     "expo-blur": "~57.0.2",
     "expo-clipboard": "~57.0.2",

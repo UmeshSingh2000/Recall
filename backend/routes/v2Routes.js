@@ -1,7 +1,9 @@
 import { Router } from "express";
-import { syncProjects } from "../controllers/syncController";
+import { syncProjects, syncProjectsIds, getProjectById } from "../controllers/syncController.js";
 const router = Router();
 
-router.post("/sync-projects", requireV2ApiToken, syncProjects);
+router.post("/api/sync-projects", syncProjects);
+router.get("/api/sync-projects-ids", syncProjectsIds);
+router.get('/api/project/:id', getProjectById)
 
 export default router;

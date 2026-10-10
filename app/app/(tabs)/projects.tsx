@@ -1,16 +1,32 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
 import { EmptyState, Screen } from '../../components/ui';
 import type { Project } from '../../types';
+import { getProjectById, getProjectsIds, syncProjects } from '@/lib/backendCalls';
+import Toast from 'react-native-toast-message';
+import AppLoader from '@/components/AppLoader';
+import { setSyncMetaData, SyncMetadataKeys } from '@/lib/database';
 
 export default function ProjectsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     add: { color: colors.green, fontWeight: '800', fontSize: 13 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    sync: {
+      color: colors.ink,
+      fontWeight: '800',
+      fontSize: 13,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 7,
+    },
     list: { paddingBottom: tabBarInset },
     card: {
       backgroundColor: colors.surface,
@@ -44,6 +60,16 @@ export default function ProjectsScreen() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [ids, setIds] = useState<{
+    online: number[];
+    local: number[];
+  }>({
+    online: [] as number[],
+    local: [] as number[],
+  })
+
 
   const loadProjects = useCallback(() => {
     return db
@@ -59,6 +85,80 @@ export default function ProjectsScreen() {
       .then(setProjects);
   }, [db]);
 
+  const handleSyncProject = async () => {
+    
+    // if(!projects.length){
+    //   Toast.show({
+    //     type: "info",
+    //     text1: "No projects to sync",
+    //     text2: "There are no projects available to sync with the backend.",
+    //   });
+    //   return;
+    // }
+    try{
+      setLoading(true);
+
+      if(ids.local.length) {
+        const localProjectsToSync = projects.filter((project: Project) => ids.local.includes(project.id));
+        const results = await Promise.all(
+          localProjectsToSync.map((project) => syncProjects(project))
+        )
+
+        Toast.show({
+          type: "success",
+          text1:  "Sync Successful",
+          text2: `${results.length} project(s) synced from local to online.`,
+        });
+      }
+
+      else if (ids.online.length) {
+        const onlineProjectsToSync = await Promise.all(
+          ids.online.map((id) => getProjectById(id))
+        );
+
+        const projects = onlineProjectsToSync
+          .map(response => response.data?.project)
+          .filter(Boolean);
+
+        await db.withTransactionAsync(async () => {
+          for (const project of projects) {
+            await db.runAsync(
+              `INSERT OR IGNORE INTO projects
+                (id, name, description, repository_url, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+              project.id,
+              project.name,
+              project.description,
+              project.repository_url,
+              project.created_at,
+              project.updated_at,
+            );
+          }
+        });
+        await loadProjects();
+
+        Toast.show({
+          type: "success",
+          text1:  "Sync Successful",
+          text2: `${projects.length} project(s) synced from online to local.`,
+        });
+      }
+      await setSyncMetaData(db, SyncMetadataKeys.ProjectsDirty, '0');
+      setIsDirty(false);
+    }
+    catch(e: any){
+      console.error('Sync error:', e.message);
+      Toast.show({
+        type: "error",
+        text1: "Sync failed",
+        text2: e.message || "An error occurred while syncing projects.",
+      });
+    }
+    finally{
+      setLoading(false);
+    }
+  }
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -68,24 +168,91 @@ export default function ProjectsScreen() {
     }
   }, [loadProjects]);
 
+  // fetch all the project ids and compare them with local sqlite ids diff should be pushed to either on local or online
+  const loadProjectsOnlineAndCheckDirty = useCallback(async () => {
+    try {
+      // Always read the latest IDs from SQLite.
+      const localRows = await db.getAllAsync<{ id: number }>(
+        'SELECT id FROM projects ORDER BY id'
+      );
+
+      const response = await getProjectsIds();
+
+      const localIds = localRows.map(row => row.id);
+      const onlineIds: number[] = response.data.projects.map(
+        (project: { id: number }) => project.id
+      );
+
+      const localSet = new Set(localIds);
+      const onlineSet = new Set(onlineIds);
+
+      // Local projects missing online: upload them.
+      const localToOnline = localIds.filter(id => !onlineSet.has(id));
+
+      // Online projects missing locally: download them.
+      const onlineToLocal = onlineIds.filter(id => !localSet.has(id));
+
+      const dirty = localToOnline.length > 0 || onlineToLocal.length > 0;
+
+      setIds({
+        local: localToOnline,
+        online: onlineToLocal,
+      });
+
+      setIsDirty(dirty);
+
+      await setSyncMetaData(
+        db,
+        SyncMetadataKeys.ProjectsDirty,
+        dirty ? '1' : '0'
+      );
+    } catch (error) {
+      console.error('Error fetching project IDs:', error);
+    }
+  }, [db]);
+
   useFocusEffect(
     useCallback(() => {
-      loadProjects();
-    }, [loadProjects]),
+      let cancelled = false;
+
+      async function initialize() {
+        await loadProjects();
+
+        if (!cancelled) {
+          await loadProjectsOnlineAndCheckDirty();
+        }
+      }
+
+      initialize();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [loadProjects, loadProjectsOnlineAndCheckDirty])
   );
 
-  useEffect(()=>{
-    console.log('projects', projects);
-  }, [projects]);
+  if(loading){
+    return <AppLoader
+      text="Syncing projects..."
+    />
+  }
 
   return (
     <Screen
       title="Projects"
       subtitle="Your engineering landscape"
       right={
-        <Pressable onPress={() => router.push('/new-project')}>
-          <Text style={styles.add}>Add project</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          {
+            isDirty &&
+            <TouchableOpacity onPress={handleSyncProject}>
+              <Text style={styles.sync}>Sync projects</Text>
+            </TouchableOpacity>
+          }
+          <Pressable onPress={() => router.push('/new-project')}>
+            <Text style={styles.add}>Add project</Text>
+          </Pressable>
+        </View>
       }
     >
       <ScrollView
