@@ -1,32 +1,23 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
 import { EmptyState, Screen } from '../../components/ui';
 import type { Project } from '../../types';
 import { getProjectById, getProjectsIds, syncProjects } from '@/lib/backendCalls';
 import Toast from 'react-native-toast-message';
-import AppLoader from '@/components/AppLoader';
 import { setSyncMetaData, SyncMetadataKeys } from '@/lib/database';
+import { FLOATING_TAB_BAR_HEIGHT } from '../../components/FloatingTabBar';
 
 export default function ProjectsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     add: { color: colors.green, fontWeight: '800', fontSize: 13 },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-    sync: {
-      color: colors.ink,
-      fontWeight: '800',
-      fontSize: 13,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 7,
-    },
     list: { paddingBottom: tabBarInset },
     card: {
       backgroundColor: colors.surface,
@@ -55,13 +46,66 @@ export default function ProjectsScreen() {
     completed: { color: colors.muted, fontSize: 12 },
     dot: { color: colors.line },
     arrow: { color: colors.muted, fontSize: 26, lineHeight: 28 },
+    syncBar: {
+      position: 'absolute',
+      left: -spacing.lg,
+      right: -spacing.lg,
+      bottom: 0,
+      minHeight: 56,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+    },
+    syncIcon: { marginRight: spacing.sm },
+    syncStatus: {
+      flex: 1,
+      color: colors.muted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    syncButton: {
+      minHeight: 36,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.ink,
+    },
+    syncButtonDisabled: { opacity: 0.55 },
+    syncButtonText: { color: colors.canvas, fontSize: 12, fontWeight: '800' },
+    dismiss: {
+      width: 36,
+      height: 36,
+      marginLeft: spacing.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    syncRestore: {
+      position: 'absolute',
+      right: spacing.lg,
+      bottom: 0,
+      width: 42,
+      height: 42,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
   }));
   const db = useSQLiteContext();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [projects, setProjects] = useState<Project[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [syncDismissed, setSyncDismissed] = useState(false);
   const [ids, setIds] = useState<{
     online: number[];
     local: number[];
@@ -231,24 +275,12 @@ export default function ProjectsScreen() {
     }, [loadProjects, loadProjectsOnlineAndCheckDirty])
   );
 
-  if(loading){
-    return <AppLoader
-      text="Syncing projects..."
-    />
-  }
-
   return (
     <Screen
       title="Projects"
       subtitle="Your engineering landscape"
       right={
         <View style={styles.headerActions}>
-          {
-            isDirty &&
-            <TouchableOpacity onPress={handleSyncProject}>
-              <Text style={styles.sync}>Sync projects</Text>
-            </TouchableOpacity>
-          }
           <Pressable onPress={() => router.push('/new-project')}>
             <Text style={styles.add}>Add project</Text>
           </Pressable>
@@ -259,7 +291,10 @@ export default function ProjectsScreen() {
         showsVerticalScrollIndicator={false}
         bounces
         alwaysBounceVertical
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.list,
+          isDirty && !syncDismissed && { paddingBottom: tabBarInset + 60 },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />
         }
@@ -298,6 +333,63 @@ export default function ProjectsScreen() {
           />
         )}
       </ScrollView>
+      {isDirty && !syncDismissed ? (
+        <View
+          style={[
+            styles.syncBar,
+            { bottom: Math.max(insets.bottom, spacing.md) + FLOATING_TAB_BAR_HEIGHT },
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.muted}
+              style={styles.syncIcon}
+            />
+          ) : (
+            <Ionicons
+              name="sync-outline"
+              size={17}
+              color={colors.muted}
+              style={styles.syncIcon}
+            />
+          )}
+          <Text style={styles.syncStatus}>
+            {loading ? 'Syncing projects...' : isDirty ? 'Sync required' : 'Projects are up to date'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sync projects now"
+            disabled={loading}
+            onPress={handleSyncProject}
+            style={({ pressed }) => [
+              styles.syncButton,
+              loading && styles.syncButtonDisabled,
+              pressed && !loading && { opacity: 0.8 },
+            ]}
+          >
+            <Text style={styles.syncButtonText}>Sync now</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss sync status"
+            hitSlop={6}
+            onPress={() => setSyncDismissed(true)}
+            style={styles.dismiss}
+          >
+            <Ionicons name="close" size={17} color={colors.muted} />
+          </Pressable>
+        </View>
+      ) : isDirty ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Show sync status"
+          onPress={() => setSyncDismissed(false)}
+          style={styles.syncRestore}
+        >
+          <Ionicons name="sync-outline" size={18} color={colors.green} />
+        </Pressable>
+      ) : null}
     </Screen>
   );
 }
