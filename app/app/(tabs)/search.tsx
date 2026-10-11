@@ -125,11 +125,17 @@ export default function SearchScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
       >
-        {query && results.length === 0 ? (
+        {results.length === 0 ? (
           <EmptyState
-            icon="search-outline"
-            title="Nothing matched"
-            body="Try a ticket key, project name, or a detail from a work log."
+            icon={query ? 'search-outline' : 'file-tray-outline'}
+            title={query ? 'Nothing matched' : 'No tickets found'}
+            body={
+              query
+                ? 'Try a ticket key, project name, or a detail from a work log.'
+                : 'Add a ticket to start remembering your work.'
+            }
+            action={!query ? 'Add ticket' : undefined}
+            onAction={!query ? () => router.push('/new-ticket') : undefined}
           />
         ) : (
           results.map((ticket) => (
@@ -188,4 +194,3 @@ export default function SearchScreen() {
     </Screen>
   );
 }
-

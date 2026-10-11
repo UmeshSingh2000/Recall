@@ -6,6 +6,7 @@ import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TicketDeck } from "../../components/TicketDeck";
 import { WorkloadGraph } from "../../components/WorkloadGraph";
+import { ClipboardNotifications } from "../../components/ClipboardNotifications";
 import { SectionHeading, TicketCard } from "../../components/ui";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { radius, spacing, tabBarInset } from "../../constants/theme";
@@ -19,6 +20,7 @@ export default function TabOneScreen() {
     scroll: { flex: 1, backgroundColor: colors.canvas },
     content: { padding: spacing.lg, paddingBottom: tabBarInset },
     greeting: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginBottom: 20 },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     eyebrow: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
     heading: { color: colors.ink, fontSize: 30, fontWeight: "800", marginTop: 5 },
     subheading: { color: colors.muted, fontSize: 14, marginTop: 4 },
@@ -82,7 +84,10 @@ export default function TabOneScreen() {
             <Text style={styles.heading}>{greeting(now)}</Text>
             <Text style={styles.subheading}>Let’s pick up where you left off.</Text>
           </View>
-          <View style={styles.avatar}><Text style={styles.avatarText}>U</Text></View>
+          <View style={styles.headerActions}>
+            <ClipboardNotifications />
+            <View style={styles.avatar}><Text style={styles.avatarText}>U</Text></View>
+          </View>
         </View>
         <View style={styles.stats}>
           {[["Active", active, colors.green], ["Paused", paused, colors.orange], ["Done today", done, colors.blue]].map(([label, count, tone]) => (
@@ -120,4 +125,3 @@ export default function TabOneScreen() {
     </SafeAreaView>
   );
 }
-

@@ -2,19 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
+import Toast from "react-native-toast-message";
 import { useEffect, useRef, useState } from "react";
 import {
   AppState,
-  Dimensions,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, spacing } from "../constants/theme";
 import { useTheme, useThemedStyles } from "./ThemeProvider";
 
@@ -29,8 +27,6 @@ const webSocketUrl = backendUrl.replace(/^https/, "wss");
 const clipboardChannelId = "clipboard-v2";
 
 const BELL_SIZE = 44;
-const INITIAL_TOP = 8;
-const HORIZONTAL_INSET = spacing.lg;
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
@@ -46,12 +42,8 @@ if (Platform.OS !== "web") {
 export function ClipboardNotifications() {
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
-    layer: {
-      ...StyleSheet.absoluteFill,
-      zIndex: 20,
-    },
+    container: { position: "relative", zIndex: 20 },
     bell: {
-      position: "absolute",
       width: BELL_SIZE,
       height: BELL_SIZE,
       borderRadius: BELL_SIZE / 2,
@@ -67,7 +59,8 @@ export function ClipboardNotifications() {
       elevation: 4,
     },
     bellTouch: {
-      ...StyleSheet.absoluteFill,
+      width: "100%",
+      height: "100%",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -86,206 +79,73 @@ export function ClipboardNotifications() {
     countText: { color: "#fff", fontSize: 10, fontWeight: "800" },
     panel: {
       position: "absolute",
-      width: 320,
-      maxWidth: "90%",
-      maxHeight: 430,
-      padding: spacing.md,
-      backgroundColor: colors.surface,
+      right: 0,
+      top: BELL_SIZE + spacing.md,
+      padding: spacing.lg,
+      backgroundColor: colors.hero,
       borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.lg,
-      shadowColor: colors.ink,
-      shadowOpacity: 0.16,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 8,
+      borderColor: colors.heroBorder,
+      borderRadius: radius.md,
+      shadowColor: "#000",
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 12,
     },
     panelHeader: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "center",
       justifyContent: "space-between",
-      paddingBottom: spacing.md,
+      marginBottom: spacing.md,
     },
-    panelTitle: { color: colors.ink, fontSize: 17, fontWeight: "800" },
-    panelSubtitle: { color: colors.muted, fontSize: 11, marginTop: 3 },
-    empty: { color: colors.muted, fontSize: 13, paddingVertical: spacing.lg },
+    panelTitle: { color: colors.heroText, fontSize: 16, fontWeight: "700" },
+    panelSubtitle: { color: colors.heroSubtext, fontSize: 11, marginTop: 4 },
+    closeButton: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.heroBorder,
+    },
+    previewList: { maxHeight: 270 },
+    empty: {
+      color: colors.heroSubtext,
+      fontSize: 13,
+      lineHeight: 19,
+      paddingVertical: spacing.lg,
+      textAlign: "center",
+    },
     notification: {
       padding: spacing.md,
       marginBottom: spacing.sm,
-      backgroundColor: colors.canvas,
-      borderRadius: radius.md,
-    },
-    notificationText: { color: colors.ink, fontSize: 14, lineHeight: 20 },
-    copyButton: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginTop: spacing.sm,
-      paddingVertical: 4,
-    },
-    copyText: { color: colors.green, fontSize: 12, fontWeight: "800" },
-    pressed: { opacity: 0.65 },
-    toast: {
-      position: "absolute",
-      bottom: spacing.lg,
-      left: spacing.lg,
-      right: spacing.lg,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: spacing.sm,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.md,
-      shadowColor: colors.ink,
-      shadowOpacity: 0.14,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
+      borderColor: colors.heroBorder,
+      borderRadius: radius.sm,
     },
-    toastText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+    notificationText: {
+      color: colors.heroText,
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    copyButton: {
+      width: 32,
+      height: 32,
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "flex-end",
+      marginTop: spacing.sm,
+      backgroundColor: colors.greenSoft,
+      borderRadius: radius.pill,
+    },
+    pressed: { opacity: 0.65 },
   }));
-  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [showCopiedToast, setShowCopiedToast] = useState(false);
-
-  const { width: screenWidth, height: screenHeight } =
-    Dimensions.get("window");
-
-  const [bellPosition, setBellPosition] = useState(() => ({
-    x: screenWidth - spacing.lg - BELL_SIZE,
-    y: insets.top + INITIAL_TOP,
-  }));
-
-  const bellPositionRef = useRef(bellPosition);
-
-  const dragStartRef = useRef({
-    x: 0,
-    y: 0,
-  });
-
-  const isDraggingRef = useRef(false);
+  const { width: screenWidth } = useWindowDimensions();
 
   const pushNotificationsEnabled = useRef(false);
-
-  const minY = insets.top + INITIAL_TOP;
-  const maxY = Math.max(minY, screenHeight - insets.bottom - BELL_SIZE - INITIAL_TOP);
-  const boundsRef = useRef({ screenWidth, minY, maxY });
-  boundsRef.current = { screenWidth, minY, maxY };
-
-  const setPosition = (x: number, y: number) => {
-    const bounds = boundsRef.current;
-    const boundedX = Math.max(
-      HORIZONTAL_INSET,
-      Math.min(
-        x,
-        bounds.screenWidth - HORIZONTAL_INSET - BELL_SIZE,
-      ),
-    );
-
-    const boundedY = Math.max(bounds.minY, Math.min(y, bounds.maxY));
-
-    const position = {
-      x: boundedX,
-      y: boundedY,
-    };
-
-    bellPositionRef.current = position;
-    setBellPosition(position);
-  };
-
-  useEffect(() => {
-    setPosition(bellPositionRef.current.x, bellPositionRef.current.y);
-  }, [insets.bottom, insets.top, screenHeight, screenWidth]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-
-      onStartShouldSetPanResponderCapture: () => false,
-
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return (
-          Math.abs(gestureState.dx) > 5 ||
-          Math.abs(gestureState.dy) > 5
-        );
-      },
-
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return (
-          Math.abs(gestureState.dx) > 5 ||
-          Math.abs(gestureState.dy) > 5
-        );
-      },
-
-      onPanResponderTerminationRequest: () => false,
-
-      onPanResponderGrant: () => {
-        isDraggingRef.current = false;
-
-        dragStartRef.current = {
-          x: bellPositionRef.current.x,
-          y: bellPositionRef.current.y,
-        };
-      },
-
-      onPanResponderMove: (_, gestureState) => {
-        if (
-          Math.abs(gestureState.dx) > 5 ||
-          Math.abs(gestureState.dy) > 5
-        ) {
-          isDraggingRef.current = true;
-        }
-
-        setPosition(
-          dragStartRef.current.x + gestureState.dx,
-          dragStartRef.current.y + gestureState.dy,
-        );
-      },
-
-      onPanResponderRelease: () => {
-        const currentX = bellPositionRef.current.x;
-
-        const minX = HORIZONTAL_INSET;
-        const maxX = screenWidth - HORIZONTAL_INSET - BELL_SIZE;
-
-        isDraggingRef.current = false;
-
-        // Snap to whichever horizontal edge is closer.
-        const snapX =
-          currentX < (minX + maxX) / 2
-            ? minX
-            : maxX;
-
-        setPosition(
-          snapX,
-          bellPositionRef.current.y,
-        );
-      },
-
-      onPanResponderTerminate: () => {
-        const currentX = bellPositionRef.current.x;
-
-        const minX = HORIZONTAL_INSET;
-        const maxX = screenWidth - HORIZONTAL_INSET - BELL_SIZE;
-
-        const snapX =
-          currentX < (minX + maxX) / 2
-            ? minX
-            : maxX;
-
-        setPosition(
-          snapX,
-          bellPositionRef.current.y,
-        );
-      },
-    }),
-  ).current;
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -512,25 +372,15 @@ export function ClipboardNotifications() {
       ),
     );
 
-    setShowCopiedToast(true);
-
-    setTimeout(() => {
-      setShowCopiedToast(false);
-    }, 1600);
+    Toast.show({
+      type: "success",
+      text1: "Copied to clipboard",
+    });
   };
 
   return (
-    <View pointerEvents="box-none" style={styles.layer}>
-      <View
-        {...panResponder.panHandlers}
-        style={[
-          styles.bell,
-          {
-            left: bellPosition.x,
-            top: bellPosition.y,
-          },
-        ]}
-      >
+    <View style={styles.container}>
+      <View style={styles.bell}>
         <Pressable
           accessibilityLabel="Open clipboard notifications"
           style={styles.bellTouch}
@@ -556,19 +406,7 @@ export function ClipboardNotifications() {
         <View
           style={[
             styles.panel,
-            {
-              top: bellPosition.y + BELL_SIZE + 8,
-              left:
-                bellPosition.x > screenWidth / 2
-                  ? undefined
-                  : bellPosition.x,
-              right:
-                bellPosition.x > screenWidth / 2
-                  ? screenWidth -
-                    bellPosition.x -
-                    BELL_SIZE
-                  : undefined,
-            },
+            { width: Math.min(300, Math.max(0, screenWidth - spacing.xxl)) },
           ]}
         >
           <View style={styles.panelHeader}>
@@ -585,6 +423,10 @@ export function ClipboardNotifications() {
             <Pressable
               accessibilityLabel="Close clipboard notifications"
               hitSlop={8}
+              style={({ pressed }) => [
+                styles.closeButton,
+                pressed && styles.pressed,
+              ]}
               onPress={() => setIsOpen(false)}
             >
               <Ionicons
@@ -600,7 +442,13 @@ export function ClipboardNotifications() {
               Copied text will appear here.
             </Text>
           ) : (
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.previewList}
+              nestedScrollEnabled
+              scrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               {notifications.map((notification) => (
                 <View
                   style={styles.notification}
@@ -614,6 +462,8 @@ export function ClipboardNotifications() {
                   </Text>
 
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy clipboard text"
                     style={({ pressed }) => [
                       styles.copyButton,
                       pressed && styles.pressed,
@@ -624,11 +474,9 @@ export function ClipboardNotifications() {
                   >
                     <Ionicons
                       name="copy-outline"
-                      size={16}
+                      size={17}
                       color={colors.green}
                     />
-
-                    <Text style={styles.copyText}>Copy</Text>
                   </Pressable>
                 </View>
               ))}
@@ -637,19 +485,6 @@ export function ClipboardNotifications() {
         </View>
       ) : null}
 
-      {showCopiedToast ? (
-        <View style={styles.toast} pointerEvents="none">
-          <Ionicons
-            name="checkmark-circle"
-            size={18}
-            color={colors.green}
-          />
-          <Text style={styles.toastText}>
-            Text copied to clipboard
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }
-

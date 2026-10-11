@@ -6,7 +6,6 @@ import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
-import { ClipboardNotifications } from "../components/ClipboardNotifications";
 import { GitCommitListener } from "../components/GitCommitListener";
 import { ThemeProvider, useTheme, useThemedStyles } from "../components/ThemeProvider";
 import { spacing } from "../constants/theme";
@@ -28,7 +27,6 @@ function RootToast() {
 function AuthenticatedDatabaseExtras() {
   return (
     <>
-      <ClipboardNotifications />
       <GitCommitListener />
     </>
   );
@@ -171,4 +169,3 @@ const styles = StyleSheet.create({
     elevation: 9999,
   },
 });
-
