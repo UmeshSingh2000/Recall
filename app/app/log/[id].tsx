@@ -13,6 +13,7 @@ import { generateLogSummary } from "../../lib/api";
 import { deleteWorkLog } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
 import type { TicketFile, TicketStatus, WorkLog } from "../../types";
+import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 
 type LogDetail = WorkLog & {
   ticket_key: string;
@@ -68,6 +69,7 @@ export default function LogDetailScreen() {
   const { colors } = useTheme();
   const styles = useLogDetailStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [loadFinished, setLoadFinished] = useState(false);
   const router = useRouter();
   const db = useSQLiteContext();
   const [log, setLog] = useState<LogDetail | null>(null);
@@ -76,6 +78,7 @@ export default function LogDetailScreen() {
   const [summarizing, setSummarizing] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [files, setFiles] = useState<TicketFile[]>([]);
+  useMarkRouteInteractive(loadFinished);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +109,10 @@ export default function LogDetailScreen() {
         nextLog.created_at,
       );
       if (!cancelled) setFiles(nextFiles);
-    })();
+    })()
+      .finally(() => {
+        if (!cancelled) setLoadFinished(true);
+      });
 
     return () => {
       cancelled = true;

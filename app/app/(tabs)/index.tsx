@@ -12,8 +12,10 @@ import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { radius, spacing, tabBarInset } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
 import type { Ticket } from "../../types";
+import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 
 export default function TabOneScreen() {
+  useMarkRouteInteractive();
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     safe: { flex: 1, backgroundColor: colors.canvas },

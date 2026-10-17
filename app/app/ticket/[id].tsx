@@ -21,6 +21,7 @@ import { generateTicketSummary } from "../../lib/api";
 import { deleteTicket } from "../../lib/database";
 import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
 import { relativeTime, titleCase } from "../../lib/format";
+import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 import type {
   ProgressItem,
   Project,
@@ -259,6 +260,8 @@ export default function TicketDetailScreen() {
   const [summary, setSummary] = useState("");
   const [summaryError, setSummaryError] = useState("");
   const [summarizing, setSummarizing] = useState(false);
+  const [loadFinished, setLoadFinished] = useState(false);
+  useMarkRouteInteractive(loadFinished);
   const loadTicket = () => {
     const ticketId = Number(id);
     return Promise.all([
@@ -283,9 +286,10 @@ export default function TicketDetailScreen() {
       setImportantDecisions(nextTicket?.important_decisions || "");
       setProgress(nextProgress);
       setLogs(nextLogs);
-    });
+    }).finally(() => setLoadFinished(true));
   };
   useEffect(() => {
+    setLoadFinished(false);
     loadTicket();
   }, [db, id]);
   useEffect(() => {

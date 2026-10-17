@@ -11,8 +11,10 @@ import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 
 export default function LoginScreen() {
+  useMarkRouteInteractive();
   const { login } = useAuth();
   const { colors } = useTheme();
   const [email, setEmail] = useState("");

@@ -10,6 +10,7 @@ import { WorkloadGraph } from '../../components/WorkloadGraph';
 import { radius, spacing } from '../../constants/theme';
 import { deleteProject } from '../../lib/database';
 import type { Project, Ticket } from '../../types';
+import { useMarkRouteInteractive } from '@/lib/useMarkRouteInteractive';
 
 export default function ProjectDetail() {
   const { colors } = useTheme();
@@ -63,13 +64,23 @@ export default function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [loadFinished, setLoadFinished] = useState(false);
+  useMarkRouteInteractive(loadFinished);
 
   useEffect(() => {
-    db.getFirstAsync<Project>('SELECT * FROM projects WHERE id = ?', Number(id)).then(setProject);
-    db.getAllAsync<Ticket>(
-      'SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id = t.project_id WHERE t.project_id = ? ORDER BY t.updated_at DESC',
-      Number(id),
-    ).then(setTickets);
+    setLoadFinished(false);
+    Promise.all([
+      db.getFirstAsync<Project>('SELECT * FROM projects WHERE id = ?', Number(id)),
+      db.getAllAsync<Ticket>(
+        'SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id = t.project_id WHERE t.project_id = ? ORDER BY t.updated_at DESC',
+        Number(id),
+      ),
+    ])
+      .then(([nextProject, nextTickets]) => {
+        setProject(nextProject);
+        setTickets(nextTickets);
+      })
+      .finally(() => setLoadFinished(true));
   }, [db, id]);
 
   const confirmDelete = () => {

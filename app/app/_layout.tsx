@@ -1,6 +1,6 @@
 import "@/lib/crypto-polyfill";
 import "react-native-reanimated";
-import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
+import { SplashScreen, Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
@@ -13,7 +13,18 @@ import { initializeDatabase } from "../lib/database";
 import AuthProvider, { useAuth } from "@/components/AuthContext";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import Toast from 'react-native-toast-message';
+import { Observe, ObserveRoot } from "expo-observe";
 
+Observe.configure({
+  integrations: {
+    "expo-router": {
+      filteredParams: ["token"], // SDK 57+: hide sensitive query keys
+    },
+  },
+  dispatchInDebug: true,
+});
+
+SplashScreen.preventAutoHideAsync();
 function RootToast() {
   const insets = useSafeAreaInsets();
 
@@ -32,7 +43,7 @@ function AuthenticatedDatabaseExtras() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
@@ -83,6 +94,12 @@ function DatabaseGate({ children }: { children: React.ReactNode }) {
   }));
   const { colors } = useTheme();
   const [ready, setReady] = useState(!isAuthenticated);
+
+  useEffect(() => {
+    if (isAuthenticated && ready) {
+      SplashScreen.hide();
+    }
+  }, [isAuthenticated, ready]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -151,7 +168,14 @@ function AuthGate({ children}: {children: React.ReactNode}) {
     if (isAuthenticated && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [isLoading, isAuthenticated, inAuthGroup, navigationState?.key]);
+  }, [isLoading, isAuthenticated, inAuthGroup, navigationState?.key, router]);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      SplashScreen.hide();
+    }
+  }, [isLoading, isAuthenticated]);
+
   if (isLoading) {
     return null;
   }
@@ -169,3 +193,6 @@ const styles = StyleSheet.create({
     elevation: 9999,
   },
 });
+
+
+export default ObserveRoot.wrap(RootLayout);

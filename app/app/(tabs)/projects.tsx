@@ -156,6 +156,7 @@ export default function ProjectsScreen() {
       }
 
       else if (ids.online.length) {
+        console.log('ids.online', ids.online);
         const onlineProjectsToSync = await Promise.all(
           ids.online.map((id) => getProjectById(id))
         );
@@ -221,6 +222,7 @@ export default function ProjectsScreen() {
       );
 
       const response = await getProjectsIds();
+      console.log('response', response);
 
       const localIds = localRows.map(row => row.id);
       const onlineIds: number[] = response.data.projects.map(

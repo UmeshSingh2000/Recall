@@ -19,10 +19,12 @@ import { authClient } from "@/lib/neon";
 import { getAuthCallbackURL } from "@/lib/auth-callback-url";
 import Toast from 'react-native-toast-message';
 import AppLoader from "@/components/AppLoader";
+import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 
 const OTP_LENGTH = 6;
 
 export default function SignupScreen() {
+  useMarkRouteInteractive();
   const { login } = useAuth();
   const { colors } = useTheme();
   const router = useRouter();
