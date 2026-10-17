@@ -1,6 +1,6 @@
 # Recall Features
 
-Recall is a local-first workspace for keeping the context behind engineering work. It organizes projects and tickets, records what happened during each work session, and makes the next action easy to recover later.
+Recall is a local-first workspace for keeping the context behind engineering work. It organizes projects and tickets, records what happened during each work session, and makes the next action easy to recover later. Optional sign-in and backend services add project sync, AI summaries, and automatic work logs from Git commits and desktop clipboard events.
 
 ## Core Concepts
 
@@ -13,6 +13,17 @@ Recall is a local-first workspace for keeping the context behind engineering wor
 
 All workspace data is stored in a local SQLite database named `recall.db`.
 
+## Account and Sign-In
+
+Recall requires an account before opening the main workspace.
+
+- **Sign up** uses email and password, then email verification with a one-time code.
+- **Sign in** uses email and password.
+- Authentication is handled through Neon Auth; the session token is stored securely on the device.
+- **Log out** is available in Settings and clears the stored auth token.
+
+The core ticket, project, and work-log experience remains local-first after sign-in. Sign-in gates access to the app and enables authenticated calls to the Recall backend.
+
 ## Main Navigation
 
 ### Home
@@ -20,11 +31,12 @@ All workspace data is stored in a local SQLite database named `recall.db`.
 The Home tab is a dashboard for resuming work quickly. It includes:
 
 - A date-aware greeting.
-- Counts for active, paused or blocked, and completed tickets.
+- Counts for active, paused or blocked, and completed tickets (including `Live` in the done count).
 - A rotating deck of open tickets.
 - A short list of active tickets.
 - Recently worked-on tickets.
 - Quick actions to add a ticket or log progress.
+- **Clipboard notifications** in the header on supported native platforms (see below).
 
 ### Projects
 
@@ -33,16 +45,24 @@ Projects keep tickets organized by product, service, or codebase. Each project c
 - Project name.
 - Description.
 - Optional repository URL.
-- Counts of active and completed tickets.
+- Counts of active and completed tickets (`Done` and `Live` count as completed).
 
 Selecting a project opens its ticket list. Projects can be created from the Projects tab.
+
+When local projects differ from the signed-in user’s online project list, a **sync bar** appears. **Sync now** can:
+
+- Push local-only projects to the backend.
+- Pull online-only projects into the local database.
+
+Sync state is tracked in local metadata so the bar can be dismissed and restored.
 
 ### Tickets
 
 The Tickets tab provides a workspace-wide ticket list. Users can:
 
 - Search by ticket key, title, or project name.
-- Filter by status: All, In progress, Paused, Blocked, Review, or Done.
+- Filter by status: All, In progress, Paused, Blocked, Review, Product review, Code review, Testing, Live, or Done.
+- Pull to refresh the list.
 - Review tickets ordered by most recently updated.
 - Create a new ticket.
 - Open a ticket’s detail view.
@@ -60,28 +80,29 @@ Search scans the work memory for matching ticket information, including:
 - Work-log descriptions.
 - Commit hashes.
 
-Matching tickets open directly into their detail view.
+Matching tickets open directly into their detail view. The list can be refreshed to pick up new logs.
 
 ### Settings
 
-Settings includes appearance, workflow, and data controls:
+Settings includes appearance, workflow, backend, data, and account controls:
 
-- Appearance choices: System, Light, and Dark.
-- Optional work-session toggle.
-- Default sort display: Recently updated.
-- Export all workspace data as a JSON backup.
-- Import a compatible Recall JSON backup.
-- Delete all workspace data.
+- **Appearance:** System, Light, and Dark (persisted in the local database).
+- **Workflow:** Optional work sessions toggle and a read-only default sort of Recently updated.
+- **Backend:** Save or remove a **Recall API token** in secure storage (used for AI summaries; separate from the sign-in session).
+- **Data:** Export all workspace data as a JSON backup, import a compatible backup, or delete all workspace data.
+- **Account:** Log out.
 
-The current appearance and work-session controls are presented in the settings UI. Workspace backup and destructive data actions are functional.
+The about section shows the current app version (see [CHANGELOG.md](./CHANGELOG.md)).
 
 ## Ticket Detail
 
 A ticket detail page is the main place to rebuild context. It includes:
 
 - Ticket key, title, project, status, and priority.
+- Horizontal **status** picker for all supported statuses.
+- **Summarize ticket** — generates a markdown **AI summary** from ticket context, progress, logs, notes, sessions, and project metadata (requires a Recall API token in Settings).
 - Ticket description.
-- The latest work session summary.
+- The latest work session summary (tap through to the related log when available).
 - Editable personal context fields:
   - What is this feature?
   - Why am I implementing it?
@@ -89,10 +110,18 @@ A ticket detail page is the main place to rebuild context. It includes:
   - Important decisions.
 - Progress checklist.
 - Editable next action.
-- Chronological work history.
+- Chronological work history (updates when Git commit logs are ingested).
 - Actions to log progress, pause or switch work, mark the ticket done, reopen it, edit it, or delete it.
 
-Marking a ticket done records its completion time. Reopening it returns it to `In progress`.
+Marking a ticket `Done` or `Live` records completion time. Reopening returns the ticket to `In progress`.
+
+## Work Log Detail
+
+Opening a work log shows its type, timestamps, description, next action, commit hash, and associated file paths. Users can:
+
+- **Summarize log** — generate a markdown AI summary for that log in context of the ticket and project (requires API token).
+- Delete the log (and linked ticket files for that log).
+- Navigate back to the parent ticket.
 
 ## Logging Progress
 
@@ -126,7 +155,13 @@ Ticket statuses are:
 - `Paused`
 - `Blocked`
 - `Review`
+- `Product review`
+- `Code review`
+- `Testing`
+- `Live`
 - `Done`
+
+`Live` and `Done` are treated as completed for counts and deck filtering.
 
 Ticket priorities are:
 
@@ -135,9 +170,21 @@ Ticket priorities are:
 - `High`
 - `Urgent`
 
+## Git Commit Auto-Logging
+
+On native platforms, Recall listens for **git commit** events from the Recall desktop script and backend:
+
+- Events arrive over a WebSocket connection to the configured backend URL.
+- Push notifications can also deliver the same payload when the app is backgrounded.
+- Each event is matched to a ticket by **ticket key** (case-insensitive).
+- Recall creates a work log with description, commit hash, work type, next action, and optional file paths, skipping duplicates for the same commit hash.
+- The ticket detail screen refreshes when a new commit log is saved.
+
+If no ticket matches the key, the event is ignored.
+
 ## Clipboard Notifications
 
-On supported native platforms, Recall connects to the configured clipboard notification service. Incoming desktop clipboard text appears in a movable notification bell and can also produce a push notification when the app is in the background.
+On supported native platforms, Recall connects to the configured clipboard notification service. Incoming desktop clipboard text appears in a movable notification bell on Home and can also produce a push notification when the app is in the background.
 
 The clipboard panel:
 
@@ -167,18 +214,30 @@ Delete all data permanently removes every project, ticket, progress item, work l
 
 ## Typical Workflow
 
-1. Create a project and optionally add its repository URL.
-2. Create a ticket with its key, title, description, and first next action.
-3. Add personal context as the implementation becomes clearer.
-4. Use the progress checklist and log work as it happens.
-5. Before switching tasks, record a handoff with the remaining work and next action.
-6. Return through Home, Tickets, or Search and continue from the saved context.
-7. Mark the ticket done when complete, or reopen it if more work is needed.
+1. Sign in or create an account.
+2. Optionally save a Recall API token in Settings for summaries.
+3. Create a project and optionally add its repository URL; sync with the backend when prompted.
+4. Create a ticket with its key, title, description, and first next action.
+5. Add personal context as the implementation becomes clearer.
+6. Use the progress checklist and log work as it happens (manually or via Git commit events from the desktop script).
+7. Before switching tasks, record a handoff with the remaining work and next action.
+8. Return through Home, Tickets, or Search and continue from the saved context.
+9. Use **Summarize ticket** or **Summarize log** when you need a quick narrative for standup or handoff.
+10. Mark the ticket `Done` or `Live` when complete, or reopen it if more work is needed.
 
 ## Local-First Behavior
 
-Recall initializes its SQLite database when the app starts and reads workspace data locally. The app does not require a remote project-management service for its core project, ticket, context, progress, or work-log features. The clipboard notification integration is the exception: it uses the configured WebSocket and push-notification service for cross-device clipboard messages.
+Recall initializes its SQLite database when the app starts and reads workspace data locally. Projects, tickets, context, progress, and work logs do not require a remote project-management service for day-to-day use.
+
+Optional cloud-connected features:
+
+- **Sign-in** (Neon Auth) to access the app and authenticated backend APIs.
+- **Project sync** between the device and the Recall backend.
+- **AI summaries** for tickets and work logs (backend + API token).
+- **Git commit** and **clipboard** integrations via the backend WebSocket, push notifications, and desktop script.
+
+Over-the-air (OTA) updates are configured through EAS for supported builds.
 
 ## Version
 
-The Settings screen identifies the current app version as `1.0.0` and labels the app as local-first.
+See [CHANGELOG.md](./CHANGELOG.md) for release history. The Settings screen shows the current user-facing version (for example `1.2.1`) and labels the app as local-first.

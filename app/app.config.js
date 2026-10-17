@@ -4,7 +4,7 @@ export default {
   expo: {
     name: isProduction ? "Recall" : "Recall Dev",
     slug: "recall",
-    version: "1.2.0",
+    version: "1.2.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "recall",
