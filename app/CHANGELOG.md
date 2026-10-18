@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Caching for projects and ticket listing
 - Redux Toolkit workspace cache for projects, tickets, ticket details, and search results.
 - Shimmer loading states for Home, Projects, Tickets, and Search.
 - Direct backup-file upload from Settings to replace online workspace data.
