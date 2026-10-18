@@ -24,4 +24,16 @@ export const authClient = createAuthClient(neonAuthUrl ?? "", {
   }),
 });
 
+type AuthClientWithJwt = typeof authClient & {
+  getJWTToken: () => Promise<string | null>;
+};
+
+export async function getAuthJWT() {
+  const response = await authClient.token();
+  if (response.error || !response.data?.token) {
+    return null;
+  }
+  return response.data.token;
+}
+
 

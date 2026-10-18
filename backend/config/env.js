@@ -7,8 +7,4 @@ export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 export const port = process.env.PORT || 3000;
-export const apiToken = process.env.RECALL_API_TOKEN;
-
-if (!apiToken) {
-  throw new Error("RECALL_API_TOKEN is not configured");
-}
+export const neonAuthUrl = process.env.NEON_AUTH_URL;

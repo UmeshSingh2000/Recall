@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ShimmerBlock from '../../components/ShimmerBlock';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
 import { EmptyState, Screen, SearchInput, TicketCard } from '../../components/ui';
 import { relativeTime, titleCase } from '../../lib/format';
-import { searchWorkspace } from '../../lib/workspace';
-import type { Ticket, WorkLog } from '../../types';
-
-type SearchResult = Ticket & { logs: WorkLog[] };
+import { fetchSearchResults, type SearchResult } from '../../store/workspaceSlice';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 
 export default function SearchScreen() {
   const { colors } = useTheme();
@@ -64,33 +62,26 @@ export default function SearchScreen() {
     },
   }));
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
   const [expandedTicketIds, setExpandedTicketIds] = useState<Set<number>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const normalizedQuery = query.trim();
+  const cachedResults = useAppSelector((state) => state.workspace.searchResults[normalizedQuery]);
+  const results = cachedResults ?? [];
+  const loading = useAppSelector((state) => state.workspace.searchLoading[normalizedQuery] ?? false);
 
-  const loadResults = useCallback(() => {
-    setLoading(true);
-    return searchWorkspace(query.trim())
-      .then((tickets) => {
-        setHasLoaded(true);
-        setResults(tickets);
-        if (!tickets.length) setExpandedTicketIds(new Set());
-      })
+  const loadResults = useCallback((force = false) => {
+    return dispatch(fetchSearchResults({ query: normalizedQuery, force })).unwrap()
       .catch((error) => {
         console.warn("Unable to search workspace:", error);
-      })
-      .finally(() => {
-        setLoading(false);
       });
-  }, [query]);
+  }, [dispatch, normalizedQuery]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadResults();
+      await loadResults(true);
     } finally {
       setRefreshing(false);
     }
@@ -100,11 +91,9 @@ export default function SearchScreen() {
     loadResults();
   }, [loadResults]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadResults();
-    }, [loadResults]),
-  );
+  useEffect(() => {
+    if (cachedResults && !cachedResults.length) setExpandedTicketIds(new Set());
+  }, [cachedResults]);
 
   return (
     <Screen title="Search" subtitle="Search your entire work memory">
@@ -119,7 +108,7 @@ export default function SearchScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
       >
-        {loading && !hasLoaded ? (
+        {cachedResults === undefined && loading ? (
           ["one", "two", "three"].map((item) => (
             <View key={item} style={styles.skeletonCard}>
               <ShimmerBlock width={78} height={12} borderRadius={5} />

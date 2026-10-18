@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 import type {
   ProgressItem,
   Project,
@@ -8,10 +9,15 @@ import type {
   WorkLog,
   WorkSession,
 } from "../types";
+import { getAuthJWT } from "./neon";
 
-export const BACKEND_URL = "https://recall-en47.onrender.com";
+const configuredBackendUrl = Constants.expoConfig?.extra?.backendUrl;
 
-const API_TOKEN_KEY = "recall.api_token";
+if (typeof configuredBackendUrl !== "string" || !configuredBackendUrl.trim()) {
+  throw new Error("BACKEND_URL is not configured.");
+}
+
+export const BACKEND_URL = configuredBackendUrl.replace(/\/+$/, "");
 
 export type GenerateSummaryPayload = {
   ticket: Ticket & {
@@ -28,41 +34,24 @@ export type GenerateSummaryPayload = {
   work_sessions?: WorkSession[];
 };
 
-export async function hasApiToken() {
-  const token = await SecureStore.getItemAsync(API_TOKEN_KEY);
-  return Boolean(token?.trim());
-}
-
-export async function saveApiToken(token: string) {
-  const trimmed = token.trim();
-  if (!trimmed) {
-    await SecureStore.deleteItemAsync(API_TOKEN_KEY);
-    return;
-  }
-
-  await SecureStore.setItemAsync(API_TOKEN_KEY, trimmed);
-}
-
-export async function clearApiToken() {
-  await SecureStore.deleteItemAsync(API_TOKEN_KEY);
-}
-
-async function getApiToken() {
-  const token = await SecureStore.getItemAsync(API_TOKEN_KEY);
+export async function getAuthToken() {
+  const token = await getAuthJWT();
   if (!token?.trim()) {
-    throw new Error("Add your Recall API token in Settings before summarizing tickets.");
+    throw new Error("Your session has expired. Please sign in again.");
   }
 
-  return token.trim();
+  const freshToken = token.trim();
+  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, freshToken);
+  return freshToken;
 }
 
 export async function generateTicketSummary(payload: GenerateSummaryPayload) {
-  const token = await getApiToken();
+  const authToken = await getAuthToken();
   const response = await fetch(`${BACKEND_URL}/api/generate-summary`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -91,12 +80,12 @@ export type GenerateLogSummaryPayload = {
 };
 
 export async function generateLogSummary(payload: GenerateLogSummaryPayload) {
-  const token = await getApiToken();
+  const authToken = await getAuthToken();
   const response = await fetch(`${BACKEND_URL}/api/generate-log-summary`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${authToken}`,
     },
     body: JSON.stringify(payload),
   });

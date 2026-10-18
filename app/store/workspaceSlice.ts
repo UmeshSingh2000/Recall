@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { Project, Ticket } from "../types";
+import type { Project, Ticket, WorkLog } from "../types";
 import {
   createProject,
   createTicket,
@@ -9,6 +9,7 @@ import {
   getTicket,
   listProjects,
   listTickets,
+  searchWorkspace,
   updateTicket,
   type TicketDetail,
 } from "../lib/workspace";
@@ -18,11 +19,15 @@ export type ProjectDetail = {
   tickets: Ticket[];
 };
 
+export type SearchResult = Ticket & { logs: WorkLog[] };
+
 type WorkspaceState = {
   projects: Project[] | null;
   tickets: Ticket[] | null;
+  searchResults: Record<string, SearchResult[]>;
   projectDetails: Record<number, ProjectDetail>;
   ticketDetails: Record<number, TicketDetail>;
+  searchLoading: Record<string, boolean>;
   projectsLoading: boolean;
   ticketsLoading: boolean;
   projectLoading: Record<number, boolean>;
@@ -32,8 +37,10 @@ type WorkspaceState = {
 const initialState: WorkspaceState = {
   projects: null,
   tickets: null,
+  searchResults: {},
   projectDetails: {},
   ticketDetails: {},
+  searchLoading: {},
   projectsLoading: false,
   ticketsLoading: false,
   projectLoading: {},
@@ -59,6 +66,18 @@ export const fetchTickets = createAsyncThunk<Ticket[], RefreshArgs>(
     const cached = (thunkApi.getState() as ThunkState).workspace.tickets;
     if (cached && !args?.force) return cached;
     return listTickets();
+  },
+);
+
+export const fetchSearchResults = createAsyncThunk<
+  { query: string; results: SearchResult[] },
+  { query: string; force?: boolean }
+>(
+  "workspace/fetchSearchResults",
+  async ({ query, force }, thunkApi) => {
+    const cached = (thunkApi.getState() as ThunkState).workspace.searchResults[query];
+    if (cached && !force) return { query, results: cached };
+    return { query, results: await searchWorkspace(query) };
   },
 );
 
@@ -137,6 +156,7 @@ const workspaceSlice = createSlice({
     invalidateTicket(state, action: PayloadAction<number>) {
       delete state.ticketDetails[action.payload];
       state.tickets = null;
+      state.searchResults = {};
       for (const [projectId, projectDetail] of Object.entries(state.projectDetails)) {
         if (projectDetail.tickets.some((ticket) => ticket.id === action.payload)) {
           delete state.projectDetails[Number(projectId)];
@@ -173,6 +193,16 @@ const workspaceSlice = createSlice({
       .addCase(fetchTickets.rejected, (state) => {
         state.ticketsLoading = false;
       })
+      .addCase(fetchSearchResults.pending, (state, action) => {
+        state.searchLoading[action.meta.arg.query] = true;
+      })
+      .addCase(fetchSearchResults.fulfilled, (state, action) => {
+        state.searchLoading[action.payload.query] = false;
+        state.searchResults[action.payload.query] = action.payload.results;
+      })
+      .addCase(fetchSearchResults.rejected, (state, action) => {
+        state.searchLoading[action.meta.arg.query] = false;
+      })
       .addCase(fetchProject.pending, (state, action) => {
         state.projectLoading[action.meta.arg.id] = true;
       })
@@ -206,6 +236,7 @@ const workspaceSlice = createSlice({
           ? [...state.tickets, action.payload.ticket]
           : [action.payload.ticket];
         state.ticketDetails[action.payload.ticket.id] = action.payload;
+        state.searchResults = {};
       })
       .addCase(updateTicketAndCache.fulfilled, (state, action: PayloadAction<Ticket>) => {
         state.tickets = replaceById(state.tickets, action.payload);
@@ -214,11 +245,18 @@ const workspaceSlice = createSlice({
         for (const projectDetail of Object.values(state.projectDetails)) {
           projectDetail.tickets = replaceById(projectDetail.tickets, action.payload) ?? [];
         }
+        for (const query of Object.keys(state.searchResults)) {
+          state.searchResults[query] = replaceById(state.searchResults[query], {
+            ...action.payload,
+            logs: state.searchResults[query].find((ticket) => ticket.id === action.payload.id)?.logs ?? [],
+          }) ?? [];
+        }
       })
       .addCase(removeProjectAndCache.fulfilled, (state, action: PayloadAction<number>) => {
         state.projects = state.projects?.filter((project) => project.id !== action.payload) ?? null;
         delete state.projectDetails[action.payload];
         state.tickets = state.tickets?.filter((ticket) => ticket.project_id !== action.payload) ?? null;
+        state.searchResults = {};
       })
       .addCase(removeTicketAndCache.fulfilled, (state, action: PayloadAction<number>) => {
         state.tickets = state.tickets?.filter((ticket) => ticket.id !== action.payload) ?? null;
@@ -226,6 +264,7 @@ const workspaceSlice = createSlice({
         for (const projectDetail of Object.values(state.projectDetails)) {
           projectDetail.tickets = projectDetail.tickets.filter((ticket) => ticket.id !== action.payload);
         }
+        state.searchResults = {};
       });
   },
 });

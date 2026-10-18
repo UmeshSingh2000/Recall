@@ -3,13 +3,12 @@ import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { useEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
 import { appearanceLabels, appearanceOptions, useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, Screen } from "../../components/ui";
 import { radius, tabBarInset } from "../../constants/theme";
-import { clearApiToken, hasApiToken, saveApiToken } from "../../lib/api";
 import { parseBackup } from "../../lib/backup";
 import { writeAppearance } from "../../lib/appearance";
 import { deleteAllOnlineData, exportOnlineBackup, importOnlineBackup } from "../../lib/workspace";
@@ -37,74 +36,11 @@ export default function SettingsScreen() {
     aboutText: { color: colors.muted, marginTop: 6, textAlign: "center" },
     version: { color: colors.muted, fontSize: 12, marginTop: 12 },
     status: { color: colors.green, fontSize: 13, lineHeight: 19, marginTop: 10, marginHorizontal: 4 },
-    tokenSection: { padding: 14, gap: 10 },
-    tokenLabel: { color: colors.ink, fontSize: 14, fontWeight: "700" },
-    tokenHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-    tokenInput: {
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.md,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      color: colors.ink,
-      backgroundColor: colors.canvas,
-      fontSize: 14,
-    },
-    tokenActions: { flexDirection: "row", gap: 10, alignItems: "center" },
-    tokenButton: {
-      backgroundColor: colors.green,
-      borderRadius: radius.md,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-    tokenButtonText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-    tokenClearButton: {
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.md,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      backgroundColor: colors.surface,
-    },
-    tokenClearText: { color: colors.charcoal, fontWeight: "700", fontSize: 13 },
-    tokenStatus: { color: colors.green, fontSize: 12, lineHeight: 18 },
   }));
   const [sessions, setSessions] = useState(true);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
-  const [apiToken, setApiToken] = useState("");
-  const [tokenSaved, setTokenSaved] = useState(false);
-  const [tokenStatus, setTokenStatus] = useState("");
-
-  useEffect(() => {
-    hasApiToken().then(setTokenSaved);
-  }, []);
-
-  const handleSaveToken = async () => {
-    setTokenStatus("");
-    try {
-      await saveApiToken(apiToken);
-      setApiToken("");
-      setTokenSaved(await hasApiToken());
-      setTokenStatus("API token saved securely on this device.");
-    } catch (error) {
-      setTokenStatus(error instanceof Error ? error.message : "Could not save the API token.");
-    }
-  };
-
-  const handleClearToken = async () => {
-    setTokenStatus("");
-    try {
-      await clearApiToken();
-      setApiToken("");
-      setTokenSaved(false);
-      setTokenStatus("API token removed from this device.");
-    } catch (error) {
-      setTokenStatus(error instanceof Error ? error.message : "Could not remove the API token.");
-    }
-  };
-
   const confirmDeleteAll = () => setDeleteDialogVisible(true);
   const handleDeleteAll = async () => {
     setDeleteDialogVisible(false);
@@ -212,39 +148,6 @@ export default function SettingsScreen() {
             <View style={styles.rowIcon}><Ionicons name="swap-vertical-outline" size={18} color={colors.green} /></View>
             <Text style={styles.label}>Default sort</Text>
             <Text style={styles.value}>Recently updated</Text>
-          </View>
-        </View>
-
-        <Text style={styles.group}>BACKEND</Text>
-        <View style={styles.panel}>
-          <View style={styles.tokenSection}>
-            <Text style={styles.tokenLabel}>Recall API token</Text>
-            <Text style={styles.tokenHint}>
-              {tokenSaved
-                ? "A token is saved securely on this device. Enter a new one to replace it."
-                : "Paste the token from your backend .env file to enable ticket summaries."}
-            </Text>
-            <TextInput
-              value={apiToken}
-              onChangeText={setApiToken}
-              placeholder="Bearer token"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              style={styles.tokenInput}
-            />
-            <View style={styles.tokenActions}>
-              <Pressable style={styles.tokenButton} onPress={handleSaveToken}>
-                <Text style={styles.tokenButtonText}>Save token</Text>
-              </Pressable>
-              {tokenSaved ? (
-                <Pressable style={styles.tokenClearButton} onPress={handleClearToken}>
-                  <Text style={styles.tokenClearText}>Remove</Text>
-                </Pressable>
-              ) : null}
-            </View>
-            {tokenStatus ? <Text style={styles.tokenStatus}>{tokenStatus}</Text> : null}
           </View>
         </View>
 

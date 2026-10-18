@@ -19,8 +19,10 @@ import {
   searchWorkspace,
   updateTicket,
 } from "../controllers/ticketController.js";
+import { requireNeonAuth } from "../middleware/requireNeonAuth.js";
 
 const router = Router();
+router.use(requireNeonAuth);
 
 router.get("/api/projects", listProjects);
 router.post("/api/projects", createProject);

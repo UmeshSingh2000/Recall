@@ -3,7 +3,7 @@ import { useAuth } from "@/components/AuthContext";
 import { useTheme, useThemedStyles } from "@/components/ThemeProvider";
 import { radius, spacing } from "@/constants/theme";
 import { getAuthCallbackURL } from "@/lib/auth-callback-url";
-import { authClient } from "@/lib/neon";
+import { authClient, getAuthJWT } from "@/lib/neon";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -201,7 +201,7 @@ export default function LoginScreen() {
         });
         return;
       }
-      const token = response?.data?.token;
+      const token = await getAuthJWT();
       if (!token) {
         Toast.show({
           type: "error",

@@ -85,7 +85,7 @@ Settings includes appearance, workflow, backend, data, and account controls:
 
 - **Appearance:** System, Light, and Dark (persisted on the device).
 - **Workflow:** Optional work sessions toggle and a read-only default sort of Recently updated.
-- **Backend:** Save or remove a **Recall API token** in secure storage (used for AI summaries; separate from the sign-in session).
+- **Backend:** AI summaries use the signed-in Neon Auth session.
 - **Data:** Export all workspace data as a JSON backup, import a compatible backup, or delete all workspace data.
 - **Account:** Log out.
 

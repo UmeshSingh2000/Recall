@@ -1,5 +1,6 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
+import { getAuthToken } from './api';
 
 const backendUrl = Constants.expoConfig?.extra?.backendUrl;
 
@@ -15,6 +16,10 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  if (!config.headers?.Authorization) {
+    const token = await getAuthToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
