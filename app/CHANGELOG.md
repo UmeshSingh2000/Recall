@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-18
+
+### Added
+
+- Redux Toolkit workspace cache for projects, tickets, ticket details, and search results.
+- Shimmer loading states for Home, Projects, Tickets, and Search.
+- Direct backup-file upload from Settings to replace online workspace data.
+- Neon Auth JWT protection for application API routes.
+
+### Changed
+
+- Workspace data now uses the online backend instead of local SQLite storage.
+- Project, ticket, search, summary, clipboard, and Git API requests use the signed-in Neon Auth session.
+- Settings no longer requires a separate static Recall API token.
+- Tab screens reuse cached data and only refresh on cache misses or pull-to-refresh.
+
+### Fixed
+
+- Expired JWT handling now refreshes the token before API requests.
+- Ticket-detail queries select only required fields to reduce response cost.
+- Ticket status updates show an indicator while the server mutation is pending.
+- Project, ticket, and work-log detail screens show consistent loading feedback.
+
 ## [1.2.1] - 2026-10-18
 
 ### Added
