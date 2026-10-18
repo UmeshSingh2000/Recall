@@ -12,6 +12,14 @@ export async function createProject(input: { name: string; description: string; 
   return response.data.id;
 }
 
+export async function updateProject(
+  id: number,
+  input: Partial<Pick<Project, "name" | "description" | "repository_url">>,
+) {
+  const response = await api.patch<{ project: Project }>(`/api/projects/${id}`, input);
+  return response.data.project;
+}
+
 export async function getProject(id: number) {
   const response = await api.get<{ project: Project; tickets: Ticket[] }>(`/api/projects/${id}`);
   return response.data;

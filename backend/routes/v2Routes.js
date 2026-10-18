@@ -5,6 +5,7 @@ import {
   deleteProject,
   getProject,
   listProjects,
+  updateProject,
 } from "../controllers/projectController.js";
 import {
   applyGitCommit,
@@ -27,6 +28,7 @@ router.use(requireNeonAuth);
 router.get("/api/projects", listProjects);
 router.post("/api/projects", createProject);
 router.get("/api/projects/:id", getProject);
+router.patch("/api/projects/:id", updateProject);
 router.delete("/api/projects/:id", deleteProject);
 
 router.get("/api/tickets", listTickets);

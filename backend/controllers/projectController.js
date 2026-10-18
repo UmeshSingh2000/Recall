@@ -1,6 +1,18 @@
 import prisma from "../config/prisma.js";
 import { parseRequest } from "../validators/parseRequest.js";
-import { createProjectBodySchema, projectIdParamSchema } from "../validators/projectSchemas.js";
+import {
+  createProjectBodySchema,
+  projectIdParamSchema,
+  updateProjectBodySchema,
+} from "../validators/projectSchemas.js";
+import {
+  cacheAside,
+  invalidateCache,
+  PROJECTS_CACHE_KEY,
+  PROJECTS_CACHE_TTL_SECONDS,
+  projectCacheKey,
+  TICKETS_CACHE_KEY,
+} from "../services/cache.js";
 import {
   projectCounts,
   serializeProject,
@@ -18,16 +30,22 @@ const ticketListInclude = {
 
 export async function listProjects(_req, res) {
   try {
-    const projects = await prisma.project.findMany({
-      orderBy: { name: "asc" },
-      include: { tickets: { select: { status: true } } },
-    });
+    const projects = await cacheAside(
+      PROJECTS_CACHE_KEY,
+      PROJECTS_CACHE_TTL_SECONDS,
+      async () => {
+        const rows = await prisma.project.findMany({
+          orderBy: { name: "asc" },
+          include: { tickets: { select: { status: true } } },
+        });
 
-    return res.status(200).json({
-      projects: projects.map((project) =>
-        serializeProject(project, projectCounts(project.tickets)),
-      ),
-    });
+        return rows.map((project) =>
+          serializeProject(project, projectCounts(project.tickets)),
+        );
+      },
+    );
+
+    return res.status(200).json({ projects });
   } catch (error) {
     console.error("List projects failed:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -50,9 +68,38 @@ export async function createProject(req, res) {
       },
     });
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
     return res.status(201).json({ id: project.id });
   } catch (error) {
     console.error("Create project failed:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function updateProject(req, res) {
+  try {
+    const params = parseRequest(res, projectIdParamSchema, req.params);
+    if (!params) return;
+    const body = parseRequest(res, updateProjectBodySchema, req.body ?? {});
+    if (!body) return;
+
+    const project = await prisma.project.update({
+      where: { id: params.id },
+      data: { ...body, updated_at: new Date() },
+      include: { tickets: { select: { status: true } } },
+    });
+
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(params.id));
+    return res
+      .status(200)
+      .json({ project: serializeProject(project, projectCounts(project.tickets)) });
+  } catch (error) {
+    if (error?.code === "P2025") {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    console.error("Update project failed:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -62,25 +109,37 @@ export async function getProject(req, res) {
     const params = parseRequest(res, projectIdParamSchema, req.params);
     if (!params) return;
 
-    const project = await prisma.project.findUnique({
-      where: { id: params.id },
-      include: { tickets: { select: { status: true } } },
-    });
+    const result = await cacheAside(
+      projectCacheKey(params.id),
+      PROJECTS_CACHE_TTL_SECONDS,
+      async () => {
+        const project = await prisma.project.findUnique({
+          where: { id: params.id },
+          include: { tickets: { select: { status: true } } },
+        });
 
-    if (!project) {
+        if (!project) {
+          return null;
+        }
+
+        const tickets = await prisma.ticket.findMany({
+          where: { project_id: project.id },
+          orderBy: { updated_at: "desc" },
+          include: ticketListInclude,
+        });
+
+        return {
+          project: serializeProject(project, projectCounts(project.tickets)),
+          tickets: tickets.map(serializeTicket),
+        };
+      },
+    );
+
+    if (!result) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    const tickets = await prisma.ticket.findMany({
-      where: { project_id: project.id },
-      orderBy: { updated_at: "desc" },
-      include: ticketListInclude,
-    });
-
-    return res.status(200).json({
-      project: serializeProject(project, projectCounts(project.tickets)),
-      tickets: tickets.map(serializeTicket),
-    });
+    return res.status(200).json(result);
   } catch (error) {
     console.error("Get project failed:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -93,6 +152,9 @@ export async function deleteProject(req, res) {
     if (!params) return;
 
     await prisma.project.delete({ where: { id: params.id } });
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(params.id));
     return res.status(200).json({ message: "Project deleted" });
   } catch (error) {
     if (error?.code === "P2025") {

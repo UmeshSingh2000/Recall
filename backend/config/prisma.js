@@ -1,16 +1,23 @@
 import "dotenv/config";
-import prismaClient from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@prisma/client";
 
-const { PrismaClient } = prismaClient;
-const environment = process.env.ENVIRONMENT
-const connectionString = environment === 'prod' ? process.env.DIRECT_URL ?? process.env.DATABASE_URL : process.env.DEV_DATABASE_URL;
+const connectionString =
+  process.env.ENVIRONMENT === "prod"
+    ? process.env.DIRECT_URL ?? process.env.DATABASE_URL
+    : process.env.DEV_DATABASE_URL;
 
 if (!connectionString) {
-    throw new Error("Set DATABASE_URL or DIRECT_URL in backend/.env");
+  throw new Error("Database connection string is missing");
 }
 
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({
+  connectionString,
+  max: 5,
+  connectionTimeoutMillis: 15_000,
+  idleTimeoutMillis: 30_000,
+});
+
 const prisma = new PrismaClient({ adapter });
 
 export default prisma;

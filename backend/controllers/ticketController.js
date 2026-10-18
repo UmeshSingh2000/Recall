@@ -17,6 +17,14 @@ import {
   serializeTicket,
   serializeWorkLog,
 } from "../services/workspaceSerialize.js";
+import {
+  cacheAside,
+  invalidateCache,
+  PROJECTS_CACHE_KEY,
+  projectCacheKey,
+  TICKETS_CACHE_KEY,
+  TICKETS_CACHE_TTL_SECONDS,
+} from "../services/cache.js";
 
 const ticketListInclude = {
   project: { select: { name: true } },
@@ -29,11 +37,18 @@ const ticketListInclude = {
 
 export async function listTickets(_req, res) {
   try {
-    const tickets = await prisma.ticket.findMany({
-      orderBy: { updated_at: "desc" },
-      include: ticketListInclude,
-    });
-    return res.status(200).json({ tickets: tickets.map(serializeTicket) });
+    const tickets = await cacheAside(
+      TICKETS_CACHE_KEY,
+      TICKETS_CACHE_TTL_SECONDS,
+      async () => {
+        const rows = await prisma.ticket.findMany({
+          orderBy: { updated_at: "desc" },
+          include: ticketListInclude,
+        });
+        return rows.map(serializeTicket);
+      },
+    );
+    return res.status(200).json({ tickets });
   } catch (error) {
     console.error("List tickets failed:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -60,6 +75,9 @@ export async function createTicket(req, res) {
       },
     });
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(body.project_id));
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(201).json({ id: ticket.id });
   } catch (error) {
     if (error?.code === "P2002") {
@@ -213,6 +231,9 @@ export async function updateTicket(req, res) {
       include: ticketListInclude,
     });
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(ticket.project_id));
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(200).json({ ticket: serializeTicket(ticket) });
   } catch (error) {
     if (error?.code === "P2025") {
@@ -230,7 +251,10 @@ export async function deleteTicket(req, res) {
   try {
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
-    await prisma.ticket.delete({ where: { id: params.id } });
+    const ticket = await prisma.ticket.delete({ where: { id: params.id } });
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(ticket.project_id));
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(200).json({ message: "Ticket deleted" });
   } catch (error) {
     if (error?.code === "P2025") {
@@ -289,6 +313,9 @@ export async function createWorkLog(req, res) {
       });
     });
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(ticket.project_id));
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(201).json({ message: "Progress logged" });
   } catch (error) {
     console.error("Create work log failed:", error);
@@ -340,6 +367,9 @@ export async function pauseTicket(req, res) {
       });
     });
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(projectCacheKey(ticket.project_id));
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(201).json({ message: "Ticket paused" });
   } catch (error) {
     console.error("Pause ticket failed:", error);

@@ -5,6 +5,11 @@ import {
   asText,
   iso,
 } from "../services/workspaceSerialize.js";
+import {
+  invalidateCache,
+  PROJECTS_CACHE_KEY,
+  TICKETS_CACHE_KEY,
+} from "../services/cache.js";
 
 const BACKUP_FORMAT = "recall-backup";
 const BACKUP_VERSION = 1;
@@ -287,6 +292,8 @@ export async function importBackup(req, res) {
       { timeout: 60000 },
     );
 
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(200).json({
       message: "Backup imported",
       counts: {
@@ -316,6 +323,8 @@ export async function deleteAllData(_req, res) {
       await tx.project.deleteMany();
       await tx.setting.deleteMany();
     });
+    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateCache(TICKETS_CACHE_KEY);
     return res.status(200).json({ message: "All data deleted" });
   } catch (error) {
     console.error("Delete all data failed:", error);
