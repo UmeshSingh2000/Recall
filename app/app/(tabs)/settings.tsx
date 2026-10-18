@@ -3,7 +3,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
@@ -11,12 +10,15 @@ import { appearanceLabels, appearanceOptions, useTheme, useThemedStyles } from "
 import { ConfirmDialog, Screen } from "../../components/ui";
 import { radius, tabBarInset } from "../../constants/theme";
 import { clearApiToken, hasApiToken, saveApiToken } from "../../lib/api";
-import { createBackup, parseBackup, restoreBackup, type RecallBackup } from "../../lib/backup";
-import { deleteAllData } from "../../lib/database";
+import { parseBackup } from "../../lib/backup";
+import { writeAppearance } from "../../lib/appearance";
+import { deleteAllOnlineData, exportOnlineBackup, importOnlineBackup } from "../../lib/workspace";
+import { useAppDispatch } from "../../store/hooks";
+import { clearWorkspace } from "../../store/workspaceSlice";
 
 export default function SettingsScreen() {
-  const db = useSQLiteContext();
   const { logout } = useAuth();
+  const dispatch = useAppDispatch();
   const { appearance, setAppearance, colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
@@ -69,7 +71,6 @@ export default function SettingsScreen() {
   }));
   const [sessions, setSessions] = useState(true);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [pendingImport, setPendingImport] = useState<RecallBackup | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [apiToken, setApiToken] = useState("");
@@ -107,14 +108,24 @@ export default function SettingsScreen() {
   const confirmDeleteAll = () => setDeleteDialogVisible(true);
   const handleDeleteAll = async () => {
     setDeleteDialogVisible(false);
-    await deleteAllData(db);
+    setBusy(true);
+    setStatus("");
+    try {
+      await deleteAllOnlineData();
+      dispatch(clearWorkspace());
+      setStatus("Online data deleted.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete online data.");
+    } finally {
+      setBusy(false);
+    }
   };
   const handleExport = async () => {
     if (busy) return;
     setBusy(true);
     setStatus("");
     try {
-      const backup = await createBackup(db);
+      const backup = await exportOnlineBackup();
       const filename = `recall-backup-${new Date().toISOString().slice(0, 10)}.json`;
       const contents = JSON.stringify(backup, null, 2);
       if (Platform.OS === "android") {
@@ -156,22 +167,17 @@ export default function SettingsScreen() {
       const contents = Platform.OS === "web" && asset.file
         ? await asset.file.text()
         : await FileSystemLegacy.readAsStringAsync(asset.uri);
-      setPendingImport(parseBackup(JSON.parse(contents)));
+      const backup = parseBackup(JSON.parse(contents));
+      setStatus("Uploading backup to the online database...");
+      await importOnlineBackup(backup);
+      dispatch(clearWorkspace());
+      const appearance = backup.data.settings.find((row) => row.key === "appearance")?.value;
+      if (appearance === "system" || appearance === "light" || appearance === "dark") {
+        await writeAppearance(appearance);
+      }
+      setStatus("Backup uploaded to the online database.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not read that backup file.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const handleImport = async () => {
-    if (!pendingImport) return;
-    setBusy(true);
-    setPendingImport(null);
-    try {
-      await restoreBackup(db, pendingImport);
-      setStatus("Backup imported successfully.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not import that backup.");
+      setStatus(error instanceof Error ? error.message : "Could not upload that backup file.");
     } finally {
       setBusy(false);
     }
@@ -244,10 +250,10 @@ export default function SettingsScreen() {
 
         <Text style={styles.group}>DATA</Text>
         <View style={styles.panel}>
-          {["Export data", "Import data", "Delete all data"].map((item, index) => (
+          {["Export online data", "Import backup", "Delete all online data"].map((item, index) => (
             <Pressable key={item} disabled={busy} style={styles.row} onPress={index === 0 ? handleExport : index === 1 ? handlePickImport : confirmDeleteAll}>
               <View style={styles.rowIcon}>
-                <Ionicons name={index === 0 ? "download-outline" : index === 1 ? "cloud-upload-outline" : "trash-outline"} size={18} color={index === 2 ? colors.red : colors.green} />
+                <Ionicons name={index === 0 ? "download-outline" : index === 1 ? "document-outline" : "trash-outline"} size={18} color={index === 2 ? colors.red : colors.green} />
               </View>
               <Text style={[styles.label, index === 2 && { color: colors.red }]}>{item}</Text>
               <Ionicons name="chevron-forward" size={17} color={colors.muted} />
@@ -269,24 +275,16 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>
           <Text style={styles.aboutText}>A quiet place for the context behind your code.</Text>
-          <Text style={styles.version}>Version 1.2.1 · Local-first</Text>
+          <Text style={styles.version}>Version 1.2.1 · Online</Text>
         </View>
       </ScrollView>
       <ConfirmDialog
         visible={deleteDialogVisible}
-        title="Delete all data?"
-        message="This will permanently delete every project, ticket, note, work log, and work session."
+        title="Delete all online data?"
+        message="This will permanently delete every project, ticket, note, work log, and work session stored online."
         confirmLabel="Delete everything"
         onCancel={() => setDeleteDialogVisible(false)}
         onConfirm={handleDeleteAll}
-      />
-      <ConfirmDialog
-        visible={pendingImport !== null}
-        title="Replace all data?"
-        message="Importing this backup will replace all current projects, tickets, notes, logs, and sessions."
-        confirmLabel="Import backup"
-        onCancel={() => setPendingImport(null)}
-        onConfirm={handleImport}
       />
     </Screen>
   );

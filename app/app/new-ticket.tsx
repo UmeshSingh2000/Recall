@@ -1,18 +1,18 @@
 import { useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useModalScreenStyles } from '../components/modalScreenStyles';
 import { useTheme } from '../components/ThemeProvider';
-import type { Project } from '../types';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { createTicketAndCache, fetchProjects } from '../store/workspaceSlice';
 
 export default function NewTicketScreen() {
-  const db = useSQLiteContext();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { colors } = useTheme();
   const styles = useModalScreenStyles();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = useAppSelector((state) => state.workspace.projects) ?? [];
   const [projectId, setProjectId] = useState<number>();
   const [ticketKey, setTicketKey] = useState('');
   const [title, setTitle] = useState('');
@@ -21,29 +21,29 @@ export default function NewTicketScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    db.getAllAsync<Project>('SELECT * FROM projects ORDER BY name').then((items) => {
-      setProjects(items);
-      setProjectId(items[0]?.id);
+    dispatch(fetchProjects()).unwrap().then((items) => {
+      setProjectId((current) => current ?? items[0]?.id);
+    }).catch((error) => {
+      console.warn('Unable to load projects:', error);
     });
-  }, [db]);
+  }, [dispatch]);
 
   const save = async () => {
     if (!projectId || !ticketKey.trim() || !title.trim() || saving) return;
     setSaving(true);
-    const now = new Date().toISOString();
-    const result = await db.runAsync(
-      'INSERT INTO tickets (project_id, ticket_key, title, description, status, priority, next_action, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      projectId,
-      ticketKey.trim().toUpperCase(),
-      title.trim(),
-      description.trim(),
-      'in_progress',
-      'medium',
-      nextAction.trim(),
-      now,
-      now,
-    );
-    router.replace(`/ticket/${result.lastInsertRowId}`);
+    try {
+      const ticket = await dispatch(createTicketAndCache({
+        project_id: projectId,
+        ticket_key: ticketKey.trim().toUpperCase(),
+        title: title.trim(),
+        description: description.trim(),
+        next_action: nextAction.trim(),
+      })).unwrap();
+      router.replace(`/ticket/${ticket.ticket.id}`);
+    } catch (error) {
+      console.warn('Unable to create ticket:', error);
+      setSaving(false);
+    }
   };
 
   const valid = Boolean(projectId && ticketKey.trim() && title.trim());

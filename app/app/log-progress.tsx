@@ -1,19 +1,21 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useModalScreenStyles } from '../components/modalScreenStyles';
 import { useTheme } from '../components/ThemeProvider';
 import { titleCase } from '../lib/format';
+import { logProgress } from '../lib/workspace';
 import type { WorkLogType } from '../types';
+import { useAppDispatch } from '../store/hooks';
+import { invalidateTicket } from '../store/workspaceSlice';
 
 const types: WorkLogType[] = ['code', 'bug_fix', 'investigation', 'testing', 'refactoring', 'documentation', 'decision', 'other'];
 
 export default function LogProgressScreen() {
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
   const router = useRouter();
-  const db = useSQLiteContext();
+  const dispatch = useAppDispatch();
   const { colors } = useTheme();
   const styles = useModalScreenStyles();
   const [description, setDescription] = useState('');
@@ -28,26 +30,15 @@ export default function LogProgressScreen() {
     if (!description.trim() || saving) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      await db.runAsync(
-        'INSERT INTO work_logs (ticket_id, type, description, what_remains, next_action, commit_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        Number(ticketId),
+      await logProgress(Number(ticketId), {
         type,
-        description.trim(),
-        remains.trim(),
-        nextAction.trim(),
-        commit.trim(),
-        now,
-      );
-      for (const path of files.split(/[\n,]/).map((x) => x.trim()).filter(Boolean)) {
-        await db.runAsync('INSERT INTO ticket_files (ticket_id, file_path, created_at) VALUES (?, ?, ?)', Number(ticketId), path, now);
-      }
-      await db.runAsync(
-        "UPDATE tickets SET status = CASE WHEN status = 'paused' THEN 'in_progress' ELSE status END, next_action = ?, updated_at = ? WHERE id = ?",
-        nextAction.trim(),
-        now,
-        Number(ticketId),
-      );
+        description: description.trim(),
+        what_remains: remains.trim(),
+        next_action: nextAction.trim(),
+        commit_hash: commit.trim(),
+        files: files.split(/[\n,]/).map((path) => path.trim()).filter(Boolean),
+      });
+      dispatch(invalidateTicket(Number(ticketId)));
       router.back();
     } finally {
       setSaving(false);

@@ -1,7 +1,13 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const databaseUrl = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const environment = process.env.ENVIRONMENT;
+if (!environment) {
+  throw new Error("Set ENVIRONMENT in backend/.env");
+}
+
+const databaseUrl = environment === 'prod' ? process.env.DIRECT_URL ?? process.env.DATABASE_URL : process.env.DEV_DATABASE_URL;
+
 if (!databaseUrl) {
   throw new Error("Set DATABASE_URL or DIRECT_URL in backend/.env");
 }

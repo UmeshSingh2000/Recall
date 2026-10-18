@@ -1,9 +1,15 @@
-import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, Text, Pressable, View } from "react-native";
+import {
+  RefreshControl,
+  ScrollView,
+  Text,
+  Pressable,
+  View,
+} from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
+import ShimmerBlock from "../../components/ShimmerBlock";
 import { radius, tabBarInset } from "../../constants/theme";
 import {
   EmptyState,
@@ -12,6 +18,41 @@ import {
   TicketCard,
 } from "../../components/ui";
 import type { Ticket, TicketStatus } from "../../types";
+import { fetchTickets } from '../../store/workspaceSlice';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+
+function TicketListSkeleton() {
+  const styles = useThemedStyles((colors) => ({
+    list: { paddingBottom: tabBarInset },
+    search: { flexDirection: "row", gap: 8, marginBottom: 16 },
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      padding: 16,
+      marginBottom: 10,
+      gap: 11,
+    },
+  }));
+
+  return (
+    <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <View style={styles.search}>
+        <ShimmerBlock width="100%" height={48} borderRadius={radius.md} />
+      </View>
+      <ShimmerBlock width={125} height={13} borderRadius={5} />
+      {["one", "two", "three", "four"].map((item) => (
+        <View key={item} style={styles.card}>
+          <ShimmerBlock width={75} height={12} borderRadius={5} />
+          <ShimmerBlock width="78%" height={18} borderRadius={6} />
+          <ShimmerBlock width="48%" height={12} borderRadius={5} />
+          <ShimmerBlock width="35%" height={12} borderRadius={5} />
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
 
 const filters: { label: string; value: TicketStatus | "all" }[] = [
   { label: "All", value: "all" },
@@ -25,11 +66,25 @@ const filters: { label: string; value: TicketStatus | "all" }[] = [
   { label: "Live", value: "live" },
   { label: "Done", value: "done" },
 ];
+
 export default function TicketsScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
-    addButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
-    searchRow: { position: "relative", flexDirection: "row", alignItems: "flex-start", gap: 8, zIndex: 10 },
+    addButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.green,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    searchRow: {
+      position: "relative",
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      zIndex: 10,
+    },
     searchField: { flex: 1, minWidth: 0 },
     filterButton: {
       width: 48,
@@ -80,31 +135,45 @@ export default function TicketsScreen() {
     sortIcon: { color: colors.green, fontSize: 16 },
     list: { paddingBottom: tabBarInset },
   }));
-  const db = useSQLiteContext();
   const router = useRouter();
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const dispatch = useAppDispatch();
+  const ticketsData = useAppSelector((state) => state.workspace.tickets);
+  const tickets = ticketsData ?? [];
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("all");
   const [refreshing, setRefreshing] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const loadTickets = useCallback(() => {
-    return db.getAllAsync<Ticket>(
-      "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC",
-    ).then(setTickets);
-  }, [db]);
+
+  const loadTickets = useCallback((force = false) => {
+    return dispatch(fetchTickets({ force })).unwrap()
+      .catch((error) => {
+        console.warn("Unable to load tickets:", error);
+      });
+  }, [dispatch]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadTickets();
+      await loadTickets(true);
     } finally {
       setRefreshing(false);
     }
   }, [loadTickets]);
+
   useFocusEffect(
     useCallback(() => {
       loadTickets();
     }, [loadTickets]),
   );
+
+  if (ticketsData === null) {
+    return (
+      <Screen title="Tickets" subtitle="Your workspace">
+        <TicketListSkeleton />
+      </Screen>
+    );
+  }
+
   const shown = tickets.filter(
     (ticket) =>
       (filter === "all" || ticket.status === filter) &&
@@ -112,11 +181,21 @@ export default function TicketsScreen() {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+
   return (
     <Screen
       title="Tickets"
       subtitle={`${shown.length} tickets in your workspace`}
-      right={<Pressable accessibilityRole="button" accessibilityLabel="Add ticket" style={styles.addButton} onPress={() => router.push("/new-ticket")}><Ionicons name="add" size={20} color="#fff" /></Pressable>}
+      right={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add ticket"
+          style={styles.addButton}
+          onPress={() => router.push("/new-ticket")}
+        >
+          <Ionicons name="add" size={20} color="#fff" />
+        </Pressable>
+      }
     >
       <View style={styles.searchRow}>
         <SearchInput
@@ -162,7 +241,9 @@ export default function TicketsScreen() {
         bounces
         alwaysBounceVertical
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />
+        }
       >
         {shown.length ? (
           shown.map((ticket) => (
@@ -178,7 +259,7 @@ export default function TicketsScreen() {
             title="No tickets found"
             body="Try another filter or add a ticket to start remembering your work."
             action="Add ticket"
-              onAction={() => router.push("/new-ticket")}
+            onAction={() => router.push("/new-ticket")}
           />
         )}
       </ScrollView>

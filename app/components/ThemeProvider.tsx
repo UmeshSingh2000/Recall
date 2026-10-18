@@ -1,11 +1,9 @@
-import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { readAppearance, writeAppearance } from '../lib/appearance';
 import { StyleSheet, useColorScheme as useSystemColorScheme, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import { darkColors, lightColors, type ThemeColors } from '../constants/theme';
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
-
-const APPEARANCE_KEY = 'appearance';
 
 type ThemeContextValue = {
   appearance: AppearancePreference;
@@ -23,16 +21,15 @@ function parseAppearance(value: string | undefined): AppearancePreference | null
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const db = useSQLiteContext();
   const systemScheme = useSystemColorScheme();
   const [appearance, setAppearanceState] = useState<AppearancePreference>('system');
 
   useEffect(() => {
     let active = true;
-    db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', APPEARANCE_KEY)
-      .then((row) => {
+    readAppearance()
+      .then((value) => {
         if (!active) return;
-        const parsed = parseAppearance(row?.value);
+        const parsed = parseAppearance(value ?? undefined);
         if (parsed) setAppearanceState(parsed);
       })
       .catch((error) => {
@@ -41,19 +38,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [db]);
+  }, []);
 
-  const setAppearance = useCallback(
-    async (preference: AppearancePreference) => {
-      setAppearanceState(preference);
-      await db.runAsync(
-        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-        APPEARANCE_KEY,
-        preference,
-      );
-    },
-    [db],
-  );
+  const setAppearance = useCallback(async (preference: AppearancePreference) => {
+    setAppearanceState(preference);
+    await writeAppearance(preference);
+  }, []);
 
   const colorScheme: 'light' | 'dark' =
     appearance === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance;

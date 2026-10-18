@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useModalScreenStyles } from '../components/modalScreenStyles';
 import { useTheme } from '../components/ThemeProvider';
+import { useAppDispatch } from '../store/hooks';
+import { createProjectAndCache } from '../store/workspaceSlice';
 
 export default function NewProject() {
-  const db = useSQLiteContext();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { colors } = useTheme();
   const styles = useModalScreenStyles();
   const [name, setName] = useState('');
@@ -20,16 +21,12 @@ export default function NewProject() {
     if (!name.trim() || saving) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const r = await db.runAsync(
-        'INSERT INTO projects (name, description, repository_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        name.trim(),
-        description.trim(),
-        repo.trim(),
-        now,
-        now,
-      );
-      router.replace(`/project/${r.lastInsertRowId}` as any);
+      const project = await dispatch(createProjectAndCache({
+        name: name.trim(),
+        description: description.trim(),
+        repository_url: repo.trim(),
+      })).unwrap();
+      router.replace(`/project/${project.project.id}` as any);
     } finally {
       setSaving(false);
     }

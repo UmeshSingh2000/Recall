@@ -1,5 +1,4 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
     KeyboardAvoidingView,
@@ -13,16 +12,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useModalScreenStyles } from "../components/modalScreenStyles";
 import { useTheme } from "../components/ThemeProvider";
-import type { Project, Ticket } from "../types";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchProjects, fetchTicket, updateTicketAndCache } from "../store/workspaceSlice";
+import type { Ticket } from "../types";
 
 export default function EditTicketScreen() {
   const { colors } = useTheme();
   const styles = useModalScreenStyles();
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
-  const db = useSQLiteContext();
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => state.workspace.projects) ?? [];
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<number>();
   const [ticketKey, setTicketKey] = useState("");
   const [title, setTitle] = useState("");
@@ -34,21 +35,20 @@ export default function EditTicketScreen() {
     const id = Number(ticketId);
 
     Promise.all([
-      db.getFirstAsync<Ticket>(
-        "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id = t.project_id WHERE t.id = ?",
-        id,
-      ),
-      db.getAllAsync<Project>("SELECT * FROM projects ORDER BY name"),
-    ]).then(([loadedTicket, loadedProjects]) => {
+      dispatch(fetchTicket({ id })).unwrap(),
+      dispatch(fetchProjects()).unwrap(),
+    ]).then(([detail]) => {
+      const loadedTicket = detail.ticket;
       setTicket(loadedTicket);
-      setProjects(loadedProjects);
       setProjectId(loadedTicket?.project_id);
       setTicketKey(loadedTicket?.ticket_key || "");
       setTitle(loadedTicket?.title || "");
       setDescription(loadedTicket?.description || "");
       setNextAction(loadedTicket?.next_action || "");
+    }).catch((error) => {
+      console.warn("Unable to load ticket:", error);
     });
-  }, [db, ticketId]);
+  }, [dispatch, ticketId]);
 
   const save = async () => {
     if (
@@ -64,16 +64,13 @@ export default function EditTicketScreen() {
     setSaving(true);
 
     try {
-      await db.runAsync(
-        "UPDATE tickets SET project_id = ?, ticket_key = ?, title = ?, description = ?, next_action = ?, updated_at = ? WHERE id = ?",
-        projectId,
-        ticketKey.trim().toUpperCase(),
-        title.trim(),
-        description.trim(),
-        nextAction.trim(),
-        new Date().toISOString(),
-        ticket.id,
-      );
+      await dispatch(updateTicketAndCache({ id: ticket.id, input: {
+        project_id: projectId,
+        ticket_key: ticketKey.trim().toUpperCase(),
+        title: title.trim(),
+        description: description.trim(),
+        next_action: nextAction.trim(),
+      } })).unwrap();
       router.back();
     } finally {
       setSaving(false);

@@ -1,12 +1,13 @@
-import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ShimmerBlock from '../../components/ShimmerBlock';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
 import { EmptyState, Screen, SearchInput, TicketCard } from '../../components/ui';
 import { relativeTime, titleCase } from '../../lib/format';
+import { searchWorkspace } from '../../lib/workspace';
 import type { Ticket, WorkLog } from '../../types';
 
 type SearchResult = Ticket & { logs: WorkLog[] };
@@ -52,46 +53,39 @@ export default function SearchScreen() {
     logDescription: { color: colors.charcoal, fontSize: 13, lineHeight: 19, marginTop: 4 },
     logNext: { color: colors.muted, fontSize: 12, marginTop: 5 },
     pressed: { opacity: 0.65 },
+    skeletonCard: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      padding: spacing.lg,
+      marginBottom: 10,
+      gap: 11,
+    },
   }));
-  const db = useSQLiteContext();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [expandedTicketIds, setExpandedTicketIds] = useState<Set<number>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const loadResults = useCallback(() => {
-    const search = `%${query.trim()}%`;
-    return db.getAllAsync<Ticket>(
-      `SELECT DISTINCT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id LEFT JOIN work_logs w ON w.ticket_id=t.id WHERE ? = '%%' OR t.ticket_key LIKE ? OR t.title LIKE ? OR t.description LIKE ? OR t.next_action LIKE ? OR w.description LIKE ? OR w.commit_hash LIKE ? ORDER BY t.updated_at DESC`,
-      search,
-      search,
-      search,
-      search,
-      search,
-      search,
-      search,
-    ).then(async (tickets) => {
-      if (!tickets.length) {
-        setResults([]);
-        setExpandedTicketIds(new Set());
-        return;
-      }
-
-      const placeholders = tickets.map(() => '?').join(', ');
-      const logs = await db.getAllAsync<WorkLog>(
-        `SELECT * FROM work_logs WHERE ticket_id IN (${placeholders}) ORDER BY created_at DESC`,
-        ...tickets.map((ticket) => ticket.id),
-      );
-      const logsByTicket = new Map<number, WorkLog[]>();
-      logs.forEach((log) => {
-        const ticketLogs = logsByTicket.get(log.ticket_id) || [];
-        ticketLogs.push(log);
-        logsByTicket.set(log.ticket_id, ticketLogs);
+    setLoading(true);
+    return searchWorkspace(query.trim())
+      .then((tickets) => {
+        setHasLoaded(true);
+        setResults(tickets);
+        if (!tickets.length) setExpandedTicketIds(new Set());
+      })
+      .catch((error) => {
+        console.warn("Unable to search workspace:", error);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-      setResults(tickets.map((ticket) => ({ ...ticket, logs: logsByTicket.get(ticket.id) || [] })));
-    });
-  }, [db, query]);
+  }, [query]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -125,7 +119,16 @@ export default function SearchScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
       >
-        {results.length === 0 ? (
+        {loading && !hasLoaded ? (
+          ["one", "two", "three"].map((item) => (
+            <View key={item} style={styles.skeletonCard}>
+              <ShimmerBlock width={78} height={12} borderRadius={5} />
+              <ShimmerBlock width="80%" height={18} borderRadius={6} />
+              <ShimmerBlock width="52%" height={12} borderRadius={5} />
+              <ShimmerBlock width="36%" height={12} borderRadius={5} />
+            </View>
+          ))
+        ) : results.length === 0 ? (
           <EmptyState
             icon={query ? 'search-outline' : 'file-tray-outline'}
             title={query ? 'Nothing matched' : 'No tickets found'}

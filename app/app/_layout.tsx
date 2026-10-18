@@ -2,18 +2,17 @@ import "@/lib/crypto-polyfill";
 import "react-native-reanimated";
 import { SplashScreen, Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { SQLiteProvider, useSQLiteContext } from "expo-sqlite";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GitCommitListener } from "../components/GitCommitListener";
-import { ThemeProvider, useTheme, useThemedStyles } from "../components/ThemeProvider";
-import { spacing } from "../constants/theme";
-import { initializeDatabase } from "../lib/database";
+import { ThemeProvider, useTheme } from "../components/ThemeProvider";
 import AuthProvider, { useAuth } from "@/components/AuthContext";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import Toast from 'react-native-toast-message';
 import { Observe, ObserveRoot } from "expo-observe";
+import { Provider } from "react-redux";
+import { store } from "../store";
 
 Observe.configure({
   integrations: {
@@ -45,9 +44,9 @@ function AuthenticatedDatabaseExtras() {
 
 function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-        <SQLiteProvider databaseName="recall.db" onInit={initializeDatabase}>
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
           <ThemeProvider>
             <AuthProvider>
               <AuthGate>
@@ -69,10 +68,10 @@ function RootLayout() {
               </AuthGate>
             </AuthProvider>
           </ThemeProvider>
-        </SQLiteProvider>
-      </KeyboardProvider>
-      <RootToast />
-    </SafeAreaProvider>
+        </KeyboardProvider>
+        <RootToast />
+      </SafeAreaProvider>
+    </Provider>
   );
 }
 
@@ -83,63 +82,15 @@ function ThemedStatusBar() {
 
 function DatabaseGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
-  const db = useSQLiteContext();
-  const styles = useThemedStyles((colors) => ({
-    loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
-    loadingMark: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.charcoal },
-    loadingMarkText: { color: colors.greenSoft, fontSize: 30, fontWeight: "900" },
-    loadingTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginTop: spacing.md },
-    loadingSubtitle: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
-    spinner: { marginTop: spacing.lg },
-  }));
-  const { colors } = useTheme();
-  const [ready, setReady] = useState(!isAuthenticated);
 
   useEffect(() => {
-    if (isAuthenticated && ready) {
+    if (isAuthenticated) {
       SplashScreen.hide();
     }
-  }, [isAuthenticated, ready]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setReady(true);
-      return;
-    }
-
-    let mounted = true;
-    setReady(false);
-    Promise.all([
-      db.getAllAsync("SELECT * FROM projects"),
-      db.getAllAsync("SELECT * FROM tickets"),
-      db.getAllAsync("SELECT * FROM work_logs"),
-    ])
-      .catch((error) => {
-        console.warn("Database warmup failed:", error);
-      })
-      .finally(() => {
-        if (mounted) setReady(true);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [db, isAuthenticated]);
+  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return <>{children}</>;
-  }
-
-  if (!ready) {
-    return (
-      <View style={styles.loading}>
-        <View style={styles.loadingMark}>
-          <Text style={styles.loadingMarkText}>R</Text>
-        </View>
-        <Text style={styles.loadingTitle}>Recall</Text>
-        <Text style={styles.loadingSubtitle}>Loading your workspace</Text>
-        <ActivityIndicator color={colors.green} style={styles.spinner} />
-      </View>
-    );
   }
 
   return (

@@ -1,18 +1,67 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TicketDeck } from "../../components/TicketDeck";
 import { WorkloadGraph } from "../../components/WorkloadGraph";
 import { ClipboardNotifications } from "../../components/ClipboardNotifications";
+import ShimmerBlock from "../../components/ShimmerBlock";
 import { SectionHeading, TicketCard } from "../../components/ui";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { radius, spacing, tabBarInset } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
-import type { Ticket } from "../../types";
+import { fetchTickets } from "../../store/workspaceSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
+
+function HomeSkeleton() {
+  const styles = useThemedStyles((colors) => ({
+    safe: { flex: 1, backgroundColor: colors.canvas },
+    scroll: { flex: 1, backgroundColor: colors.canvas },
+    content: { padding: spacing.lg, paddingBottom: tabBarInset },
+    greeting: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginBottom: 20 },
+    greetingCopy: { gap: 9 },
+    stats: { flexDirection: "row", gap: 10, marginBottom: 22 },
+    stat: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, flex: 1, padding: 13, gap: 10 },
+    section: { marginTop: 18, marginBottom: 12 },
+    ticket: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, padding: spacing.lg, marginBottom: 10, gap: 13 },
+  }));
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.greeting}>
+          <View style={styles.greetingCopy}>
+            <ShimmerBlock width={92} height={11} />
+            <ShimmerBlock width={190} height={30} borderRadius={9} />
+            <ShimmerBlock width={220} height={14} />
+          </View>
+          <ShimmerBlock width={42} height={42} borderRadius={21} />
+        </View>
+        <View style={styles.stats}>
+          {["active", "paused", "done"].map((item) => (
+            <View key={item} style={styles.stat}>
+              <ShimmerBlock width="70%" height={11} />
+              <ShimmerBlock width="45%" height={25} borderRadius={7} />
+            </View>
+          ))}
+        </View>
+        <ShimmerBlock width="100%" height={180} borderRadius={radius.md} />
+        <View style={styles.section}>
+          <ShimmerBlock width={145} height={20} borderRadius={7} />
+        </View>
+        {["one", "two", "three"].map((item) => (
+          <View key={item} style={styles.ticket}>
+            <ShimmerBlock width={80} height={12} />
+            <ShimmerBlock width="78%" height={17} borderRadius={6} />
+            <ShimmerBlock width="45%" height={12} />
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
 
 export default function TabOneScreen() {
   useMarkRouteInteractive();
@@ -42,9 +91,10 @@ export default function TabOneScreen() {
     quick: { backgroundColor: colors.greenSoft, flex: 1, borderRadius: radius.md, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     quickText: { color: colors.green, fontWeight: "800", fontSize: 13 },
   }));
-  const db = useSQLiteContext();
   const router = useRouter();
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const dispatch = useAppDispatch();
+  const ticketsData = useAppSelector((state) => state.workspace.tickets);
+  const tickets = ticketsData ?? [];
   const [now, setNow] = useState(() => new Date());
   const [deckIndex, setDeckIndex] = useState(0);
 
@@ -54,10 +104,10 @@ export default function TabOneScreen() {
   }, []);
 
   const loadTickets = useCallback(() => {
-    db.getAllAsync<Ticket>(
-      "SELECT t.*, p.name AS project_name, (SELECT description FROM work_logs WHERE ticket_id=t.id ORDER BY created_at DESC LIMIT 1) AS last_log FROM tickets t JOIN projects p ON p.id=t.project_id ORDER BY t.updated_at DESC",
-    ).then(setTickets);
-  }, [db]);
+    dispatch(fetchTickets()).unwrap().catch((error) => {
+      console.warn("Unable to load tickets:", error);
+    });
+  }, [dispatch]);
 
   useFocusEffect(useCallback(() => { loadTickets(); }, [loadTickets]));
 
@@ -76,6 +126,10 @@ export default function TabOneScreen() {
     month: "short",
     day: "numeric",
   }).toUpperCase();
+
+  if (ticketsData === null) {
+    return <HomeSkeleton />;
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>

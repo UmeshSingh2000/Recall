@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -13,25 +12,23 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppLoader from "../../components/AppLoader";
 import { MarkdownContent } from "../../components/MarkdownContent";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { radius, spacing } from "../../constants/theme";
 import { generateTicketSummary } from "../../lib/api";
-import { deleteTicket } from "../../lib/database";
+import { type TicketDetail } from "../../lib/workspace";
 import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
 import { relativeTime, titleCase } from "../../lib/format";
+import {
+  fetchTicket,
+  removeTicketAndCache,
+  updateTicketAndCache,
+} from "../../store/workspaceSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
-import type {
-  ProgressItem,
-  Project,
-  Ticket,
-  TicketFile,
-  TicketNote,
-  WorkLog,
-  WorkSession,
-  TicketStatus,
-} from "../../types";
+import type { ProgressItem, Ticket, WorkLog, TicketStatus } from "../../types";
 
 const statusOptions: { label: string; value: TicketStatus }[] = [
   { label: "In progress", value: "in_progress" },
@@ -63,12 +60,6 @@ function useTicketDetailStyles() {
     navActions: { flexDirection: "row", alignItems: "center" },
     iconButton: { padding: 7 },
     content: { padding: spacing.lg, paddingBottom: 45 },
-    loading: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.canvas,
-    },
     ticketHeader: { paddingBottom: 23 },
     key: {
       color: colors.green,
@@ -247,10 +238,14 @@ export default function TicketDetailScreen() {
   const styles = useTicketDetailStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const db = useSQLiteContext();
+  const dispatch = useAppDispatch();
+  const cachedTicket = useAppSelector((state) =>
+    state.workspace.tickets?.find((item) => item.id === Number(id)),
+  );
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
+  const [detail, setDetail] = useState<Pick<TicketDetail, "files" | "notes" | "sessions" | "project"> | null>(null);
   const [nextAction, setNextAction] = useState("");
   const [myContext, setMyContext] = useState("");
   const [whyImplementing, setWhyImplementing] = useState("");
@@ -260,86 +255,86 @@ export default function TicketDetailScreen() {
   const [summary, setSummary] = useState("");
   const [summaryError, setSummaryError] = useState("");
   const [summarizing, setSummarizing] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<TicketStatus | null>(null);
   const [loadFinished, setLoadFinished] = useState(false);
-  useMarkRouteInteractive(loadFinished);
-  const loadTicket = () => {
+  useMarkRouteInteractive(loadFinished || Boolean(ticket));
+  const loadTicket = (force = false) => {
     const ticketId = Number(id);
-    return Promise.all([
-      db.getFirstAsync<Ticket>(
-        "SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id=t.project_id WHERE t.id = ?",
-        ticketId,
-      ),
-      db.getAllAsync<ProgressItem>(
-        "SELECT * FROM progress_items WHERE ticket_id = ? ORDER BY position",
-        ticketId,
-      ),
-      db.getAllAsync<WorkLog>(
-        "SELECT * FROM work_logs WHERE ticket_id = ? ORDER BY created_at DESC",
-        ticketId,
-      ),
-    ]).then(([nextTicket, nextProgress, nextLogs]) => {
-      setTicket(nextTicket);
-      setNextAction(nextTicket?.next_action || "");
-      setMyContext(nextTicket?.my_context || "");
-      setWhyImplementing(nextTicket?.why_implementing || "");
-      setHowItWorks(nextTicket?.how_it_works || "");
-      setImportantDecisions(nextTicket?.important_decisions || "");
-      setProgress(nextProgress);
-      setLogs(nextLogs);
+    return dispatch(fetchTicket({ id: ticketId, force })).unwrap().then((next) => {
+      setTicket(next.ticket);
+      setNextAction(next.ticket?.next_action || "");
+      setMyContext(next.ticket?.my_context || "");
+      setWhyImplementing(next.ticket?.why_implementing || "");
+      setHowItWorks(next.ticket?.how_it_works || "");
+      setImportantDecisions(next.ticket?.important_decisions || "");
+      setProgress(next.progress);
+      setLogs(next.logs);
+      setDetail({
+        files: next.files,
+        notes: next.notes,
+        sessions: next.sessions,
+        project: next.project,
+      });
+    }).catch((error) => {
+      console.warn("Unable to load ticket:", error);
     }).finally(() => setLoadFinished(true));
   };
   useEffect(() => {
+    if (cachedTicket && !ticket) {
+      setTicket(cachedTicket);
+      setNextAction(cachedTicket.next_action || "");
+      setMyContext(cachedTicket.my_context || "");
+      setWhyImplementing(cachedTicket.why_implementing || "");
+      setHowItWorks(cachedTicket.how_it_works || "");
+      setImportantDecisions(cachedTicket.important_decisions || "");
+    }
+  }, [cachedTicket, ticket]);
+  useEffect(() => {
     setLoadFinished(false);
     loadTicket();
-  }, [db, id]);
+  }, [id]);
   useEffect(() => {
     const ticketId = Number(id);
     return subscribeToGitCommitLogs((updatedTicketId) => {
-      if (updatedTicketId === ticketId) loadTicket();
+      if (updatedTicketId === ticketId) loadTicket(true);
     });
   }, [id]);
-  if (!ticket)
-    return (
-      <SafeAreaView style={styles.loading} edges={["top", "left", "right"]}>
-        <Text>Loading ticket...</Text>
-      </SafeAreaView>
-    );
+  if (!ticket) return <AppLoader text="Loading ticket..." subText="Fetching ticket details" size={64} />;
   const saveNext = async () => {
-    await db.runAsync(
-      "UPDATE tickets SET next_action = ?, updated_at = ? WHERE id = ?",
-      nextAction,
-      new Date().toISOString(),
-      ticket.id,
-    );
-    setTicket({ ...ticket, next_action: nextAction });
+    const updated = await dispatch(updateTicketAndCache({ id: ticket.id, input: { next_action: nextAction } })).unwrap();
+    setTicket(updated);
   };
   const saveContext = async (
     field: "my_context" | "why_implementing" | "how_it_works" | "important_decisions",
     value: string,
   ) => {
     const updatedAt = new Date().toISOString();
-    await db.runAsync(
-      `UPDATE tickets SET ${field} = ?, updated_at = ? WHERE id = ?`,
-      value,
-      updatedAt,
-      ticket.id,
-    );
-    setTicket((current) =>
-      current ? { ...current, [field]: value, updated_at: updatedAt } : current,
-    );
+    const updated = await dispatch(updateTicketAndCache({ id: ticket.id, input: { [field]: value } })).unwrap();
+    setTicket({ ...updated, updated_at: updatedAt });
   };
   const updateStatus = async (status: Ticket['status']) => {
+    if (updatingStatus || status === ticket.status) return;
+    setUpdatingStatus(status);
     const now = new Date().toISOString();
     const completed = status === 'done' || status === 'live';
-    await db.runAsync('UPDATE tickets SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?', status, completed ? now : null, now, ticket.id);
-    setTicket({ ...ticket, status, completed_at: completed ? now : null });
+    try {
+      const updated = await dispatch(updateTicketAndCache({
+        id: ticket.id,
+        input: { status, completed_at: completed ? now : null },
+      })).unwrap();
+      setTicket(updated);
+    } catch (error) {
+      console.warn("Unable to update ticket status:", error);
+    } finally {
+      setUpdatingStatus(null);
+    }
   };
   const confirmDelete = () => {
     setDeleteDialogVisible(true);
   };
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
-    await deleteTicket(db, ticket.id);
+    await dispatch(removeTicketAndCache(ticket.id)).unwrap();
     router.back();
   };
   const handleSummarize = async () => {
@@ -349,26 +344,10 @@ export default function TicketDetailScreen() {
     setSummaryError("");
 
     try {
-      const ticketId = ticket.id;
-      const projectId = (ticket as Ticket & { project_id: number }).project_id;
-      const [project, ticketFiles, ticketNotes, workSessions] = await Promise.all([
-        db.getFirstAsync<Pick<Project, "name" | "description" | "repository_url">>(
-          "SELECT name, description, repository_url FROM projects WHERE id = ?",
-          projectId,
-        ),
-        db.getAllAsync<TicketFile>(
-          "SELECT * FROM ticket_files WHERE ticket_id = ? ORDER BY created_at DESC",
-          ticketId,
-        ),
-        db.getAllAsync<TicketNote>(
-          "SELECT * FROM ticket_notes WHERE ticket_id = ? ORDER BY updated_at DESC",
-          ticketId,
-        ),
-        db.getAllAsync<WorkSession>(
-          "SELECT * FROM work_sessions WHERE ticket_id = ? ORDER BY started_at DESC",
-          ticketId,
-        ),
-      ]);
+      const project = detail?.project ?? null;
+      const ticketFiles = detail?.files ?? [];
+      const ticketNotes = detail?.notes ?? [];
+      const workSessions = detail?.sessions ?? [];
 
       const generatedSummary = await generateTicketSummary({
         ticket: {
@@ -445,11 +424,16 @@ export default function TicketDetailScreen() {
               <Pressable
                 key={option.value}
                 onPress={() => updateStatus(option.value)}
+                disabled={updatingStatus !== null}
                 style={[styles.statusOption, ticket.status === option.value && styles.statusOptionSelected]}
               >
-                <Text style={[styles.statusOptionText, ticket.status === option.value && styles.statusOptionTextSelected]}>
-                  {option.label}
-                </Text>
+                {updatingStatus === option.value ? (
+                  <ActivityIndicator size="small" color={ticket.status === option.value ? "#fff" : colors.green} />
+                ) : (
+                  <Text style={[styles.statusOptionText, ticket.status === option.value && styles.statusOptionTextSelected]}>
+                    {option.label}
+                  </Text>
+                )}
               </Pressable>
             ))}
           </ScrollView>

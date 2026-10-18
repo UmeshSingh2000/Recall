@@ -1,17 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useModalScreenStyles } from '../components/modalScreenStyles';
 import { useTheme } from '../components/ThemeProvider';
+import { pauseTicket } from '../lib/workspace';
+import { useAppDispatch } from '../store/hooks';
+import { invalidateTicket } from '../store/workspaceSlice';
 
 const reasons = ['Higher priority task', 'Blocked', 'Waiting for someone', 'Taking a break', 'Finished for now', 'Other'];
 
 export default function SwitchWork() {
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
   const router = useRouter();
-  const db = useSQLiteContext();
+  const dispatch = useAppDispatch();
   const { colors } = useTheme();
   const styles = useModalScreenStyles();
   const [summary, setSummary] = useState('');
@@ -23,27 +25,14 @@ export default function SwitchWork() {
   const save = async () => {
     if (saving) return;
     setSaving(true);
-    const now = new Date().toISOString();
     try {
-      await db.runAsync(
-        'INSERT INTO work_sessions (ticket_id, started_at, paused_at, pause_reason, summary, next_action) VALUES (?, ?, ?, ?, ?, ?)',
-        Number(ticketId),
-        now,
-        now,
-        reason,
-        summary.trim(),
-        next.trim(),
-      );
-      await db.runAsync(
-        'INSERT INTO work_logs (ticket_id, type, description, what_remains, next_action, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        Number(ticketId),
-        'other',
-        summary.trim() || 'Paused work session.',
-        remains.trim(),
-        next.trim(),
-        now,
-      );
-      await db.runAsync("UPDATE tickets SET status = 'paused', next_action = ?, updated_at = ? WHERE id = ?", next.trim(), now, Number(ticketId));
+      await pauseTicket(Number(ticketId), {
+        summary: summary.trim(),
+        what_remains: remains.trim(),
+        next_action: next.trim(),
+        pause_reason: reason,
+      });
+      dispatch(invalidateTicket(Number(ticketId)));
       router.dismissAll();
       router.replace('/');
     } catch {

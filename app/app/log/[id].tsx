@@ -1,36 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useSQLiteContext } from "expo-sqlite";
 import { ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppLoader from "../../components/AppLoader";
 import { MarkdownContent } from "../../components/MarkdownContent";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog } from "../../components/ui";
 import { radius, spacing } from "../../constants/theme";
 import { generateLogSummary } from "../../lib/api";
-import { deleteWorkLog } from "../../lib/database";
 import { relativeTime, titleCase } from "../../lib/format";
-import type { TicketFile, TicketStatus, WorkLog } from "../../types";
+import { deleteWorkLog, getWorkLog, type WorkLogDetail } from "../../lib/workspace";
+import type { TicketFile } from "../../types";
 import { useMarkRouteInteractive } from "@/lib/useMarkRouteInteractive";
 
-type LogDetail = WorkLog & {
-  ticket_key: string;
-  ticket_title: string;
-  ticket_description: string;
-  ticket_status: TicketStatus;
-  ticket_next_action: string;
-  project_name: string;
-  project_description: string;
-  repository_url: string;
-};
+type LogDetail = WorkLogDetail;
 
 function useLogDetailStyles() {
   return useThemedStyles((colors) => ({
     page: { flex: 1, backgroundColor: colors.canvas },
-    loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas },
-    loadingText: { color: colors.muted },
     nav: { paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomColor: colors.line, borderBottomWidth: 1 },
     navTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
     iconButton: { padding: 7 },
@@ -71,7 +60,6 @@ export default function LogDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loadFinished, setLoadFinished] = useState(false);
   const router = useRouter();
-  const db = useSQLiteContext();
   const [log, setLog] = useState<LogDetail | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryError, setSummaryError] = useState("");
@@ -83,33 +71,15 @@ export default function LogDetailScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      const nextLog = await db.getFirstAsync<LogDetail>(
-        `SELECT w.*, t.ticket_key, t.title AS ticket_title, t.description AS ticket_description,
-         t.status AS ticket_status, t.next_action AS ticket_next_action,
-         p.name AS project_name, p.description AS project_description, p.repository_url
-         FROM work_logs w
-         JOIN tickets t ON t.id = w.ticket_id
-         JOIN projects p ON p.id = t.project_id
-         WHERE w.id = ?`,
-        Number(id),
-      );
-
-      if (cancelled) return;
-      setLog(nextLog);
-
-      if (!nextLog) {
-        setFiles([]);
-        return;
-      }
-
-      const nextFiles = await db.getAllAsync<TicketFile>(
-        "SELECT * FROM ticket_files WHERE ticket_id = ? AND created_at = ? ORDER BY id",
-        nextLog.ticket_id,
-        nextLog.created_at,
-      );
-      if (!cancelled) setFiles(nextFiles);
-    })()
+    getWorkLog(Number(id))
+      .then((next) => {
+        if (cancelled) return;
+        setLog(next.log);
+        setFiles(next.files);
+      })
+      .catch((error) => {
+        if (!cancelled) console.warn("Unable to load work log:", error);
+      })
       .finally(() => {
         if (!cancelled) setLoadFinished(true);
       });
@@ -117,7 +87,7 @@ export default function LogDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, id]);
+  }, [id]);
 
   const handleSummarize = async () => {
     if (!log || summarizing) return;
@@ -151,23 +121,12 @@ export default function LogDetailScreen() {
   const handleDelete = async () => {
     if (!log) return;
     setDeleteDialogVisible(false);
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
-        "DELETE FROM ticket_files WHERE ticket_id = ? AND created_at = ?",
-        log.ticket_id,
-        log.created_at,
-      );
-      await deleteWorkLog(db, log.id);
-    });
+    await deleteWorkLog(log.id);
     router.back();
   };
 
   if (!log) {
-    return (
-      <SafeAreaView style={styles.loading} edges={["top", "left", "right"]}>
-        <Text style={styles.loadingText}>Loading log...</Text>
-      </SafeAreaView>
-    );
+    return <AppLoader text="Loading log..." subText="Fetching log details" size={64} />;
   }
 
   return (

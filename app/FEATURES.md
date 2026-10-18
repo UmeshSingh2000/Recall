@@ -1,6 +1,6 @@
 # Recall Features
 
-Recall is a local-first workspace for keeping the context behind engineering work. It organizes projects and tickets, records what happened during each work session, and makes the next action easy to recover later. Optional sign-in and backend services add project sync, AI summaries, and automatic work logs from Git commits and desktop clipboard events.
+Recall is an online workspace for keeping the context behind engineering work. It organizes projects and tickets, records what happened during each work session, and makes the next action easy to recover later. Sign-in and backend services provide shared online storage, AI summaries, and automatic work logs from Git commits and desktop clipboard events.
 
 ## Core Concepts
 
@@ -11,7 +11,7 @@ Recall is a local-first workspace for keeping the context behind engineering wor
 - **Work sessions** provide a lightweight handoff when pausing one ticket to work on something else.
 - **Ticket files** store file paths associated with a work log.
 
-All workspace data is stored in a local SQLite database named `recall.db`.
+Workspace data is stored in the online Recall backend database.
 
 ## Account and Sign-In
 
@@ -22,7 +22,7 @@ Recall requires an account before opening the main workspace.
 - Authentication is handled through Neon Auth; the session token is stored securely on the device.
 - **Log out** is available in Settings and clears the stored auth token.
 
-The core ticket, project, and work-log experience remains local-first after sign-in. Sign-in gates access to the app and enables authenticated calls to the Recall backend.
+The core ticket, project, and work-log experience uses the online backend after sign-in. Sign-in gates access to the app and enables calls to the Recall backend.
 
 ## Main Navigation
 
@@ -49,10 +49,7 @@ Projects keep tickets organized by product, service, or codebase. Each project c
 
 Selecting a project opens its ticket list. Projects can be created from the Projects tab.
 
-When local projects differ from the signed-in user’s online project list, a **sync bar** appears. **Sync now** can:
-
-- Push local-only projects to the backend.
-- Pull online-only projects into the local database.
+Projects are loaded directly from the online backend.
 
 Sync state is tracked in local metadata so the bar can be dismissed and restored.
 
@@ -86,7 +83,7 @@ Matching tickets open directly into their detail view. The list can be refreshed
 
 Settings includes appearance, workflow, backend, data, and account controls:
 
-- **Appearance:** System, Light, and Dark (persisted in the local database).
+- **Appearance:** System, Light, and Dark (persisted on the device).
 - **Workflow:** Optional work sessions toggle and a read-only default sort of Recently updated.
 - **Backend:** Save or remove a **Recall API token** in secure storage (used for AI summaries; separate from the sign-in session).
 - **Data:** Export all workspace data as a JSON backup, import a compatible backup, or delete all workspace data.
@@ -240,4 +237,4 @@ Over-the-air (OTA) updates are configured through EAS for supported builds.
 
 ## Version
 
-See [CHANGELOG.md](./CHANGELOG.md) for release history. The Settings screen shows the current user-facing version (for example `1.2.1`) and labels the app as local-first.
+See [CHANGELOG.md](./CHANGELOG.md) for release history. The Settings screen shows the current user-facing version (for example `1.2.1`) and labels the app as online.

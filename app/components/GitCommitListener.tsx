@@ -1,45 +1,40 @@
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { Platform } from "react-native";
-import { useSQLiteContext } from "expo-sqlite";
 import { BACKEND_URL } from "../lib/api";
 import { applyGitCommitEvent, parseGitCommitPayload } from "../lib/gitCommitIngest";
 
 const webSocketUrl = BACKEND_URL.replace(/^https/, "wss");
 
-function ingestGitCommit(
-  db: ReturnType<typeof useSQLiteContext>,
-  payload: unknown,
-) {
+function ingestGitCommit(payload: unknown) {
   const event = parseGitCommitPayload(payload);
   if (!event) return;
 
-  applyGitCommitEvent(db, event).catch((error) =>
+  applyGitCommitEvent(event).catch((error) =>
     console.warn("Unable to save Git commit log", error),
   );
 }
 
 export function GitCommitListener() {
-  const db = useSQLiteContext();
 
   useEffect(() => {
     if (Platform.OS === "web") return;
 
     const receivedSubscription = Notifications.addNotificationReceivedListener(
       (notification) => {
-        ingestGitCommit(db, notification.request.content.data);
+        ingestGitCommit(notification.request.content.data);
       },
     );
 
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        ingestGitCommit(db, response.notification.request.content.data);
+        ingestGitCommit(response.notification.request.content.data);
       });
 
     Notifications.getLastNotificationResponseAsync()
       .then((response) => {
         if (response) {
-          ingestGitCommit(db, response.notification.request.content.data);
+          ingestGitCommit(response.notification.request.content.data);
         }
       })
       .catch((error) => {
@@ -50,7 +45,7 @@ export function GitCommitListener() {
       receivedSubscription.remove();
       responseSubscription.remove();
     };
-  }, [db]);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -64,7 +59,7 @@ export function GitCommitListener() {
         try {
           const event = parseGitCommitPayload(JSON.parse(message.data) as unknown);
           if (event) {
-            applyGitCommitEvent(db, event).catch((error) =>
+            applyGitCommitEvent(event).catch((error) =>
               console.warn("Unable to save Git commit log", error),
             );
           }
@@ -84,7 +79,7 @@ export function GitCommitListener() {
       if (retryTimer) clearTimeout(retryTimer);
       socket?.close();
     };
-  }, [db]);
+  }, []);
 
   return null;
 }

@@ -1,22 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppLoader from '../../components/AppLoader';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { ConfirmDialog, TicketCard } from '../../components/ui';
 import { WorkloadGraph } from '../../components/WorkloadGraph';
 import { radius, spacing } from '../../constants/theme';
-import { deleteProject } from '../../lib/database';
-import type { Project, Ticket } from '../../types';
+import { fetchProject, removeProjectAndCache } from '../../store/workspaceSlice';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { useMarkRouteInteractive } from '@/lib/useMarkRouteInteractive';
 
 export default function ProjectDetail() {
   const { colors } = useTheme();
   const s = useThemedStyles((colors) => ({
     page: { flex: 1, backgroundColor: colors.canvas },
-    loading: { margin: 'auto', color: colors.muted },
     nav: {
       paddingHorizontal: spacing.lg,
       paddingTop: 10,
@@ -59,29 +58,27 @@ export default function ProjectDetail() {
     deleteText: { color: colors.red, fontWeight: '800' },
   }));
   const { id } = useLocalSearchParams<{ id: string }>();
-  const db = useSQLiteContext();
   const router = useRouter();
-  const [project, setProject] = useState<Project | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const dispatch = useAppDispatch();
+  const projectId = Number(id);
+  const projectDetail = useAppSelector((state) => state.workspace.projectDetails[projectId]);
+  const project = projectDetail?.project ?? null;
+  const tickets = projectDetail?.tickets ?? [];
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [loadFinished, setLoadFinished] = useState(false);
-  useMarkRouteInteractive(loadFinished);
+  const [initialLoading, setInitialLoading] = useState(!projectDetail);
+  const projectLoading = useAppSelector((state) => state.workspace.projectLoading[projectId] ?? false);
+  useMarkRouteInteractive(Boolean(projectDetail) || !initialLoading);
 
   useEffect(() => {
-    setLoadFinished(false);
-    Promise.all([
-      db.getFirstAsync<Project>('SELECT * FROM projects WHERE id = ?', Number(id)),
-      db.getAllAsync<Ticket>(
-        'SELECT t.*, p.name AS project_name FROM tickets t JOIN projects p ON p.id = t.project_id WHERE t.project_id = ? ORDER BY t.updated_at DESC',
-        Number(id),
-      ),
-    ])
-      .then(([nextProject, nextTickets]) => {
-        setProject(nextProject);
-        setTickets(nextTickets);
+    if (!projectDetail) setInitialLoading(true);
+    dispatch(fetchProject({ id: projectId })).unwrap()
+      .catch((error) => {
+        console.warn('Unable to load project:', error);
       })
-      .finally(() => setLoadFinished(true));
-  }, [db, id]);
+      .finally(() => {
+        setInitialLoading(false);
+      });
+  }, [dispatch, projectId]);
 
   const confirmDelete = () => {
     if (!project) return;
@@ -91,17 +88,15 @@ export default function ProjectDetail() {
   const handleDelete = async () => {
     if (!project) return;
     setDeleteDialogVisible(false);
-    await deleteProject(db, project.id);
+    await dispatch(removeProjectAndCache(project.id)).unwrap();
     router.back();
   };
 
-  if (!project) {
-    return (
-      <SafeAreaView style={s.page} edges={['top', 'left', 'right']}>
-        <Text style={s.loading}>Loading project…</Text>
-      </SafeAreaView>
-    );
+  if (!project && (initialLoading || projectLoading)) {
+    return <AppLoader text="Loading project..." subText="Fetching project details" size={64} />;
   }
+
+  if (!project) return null;
 
   return (
     <SafeAreaView style={s.page} edges={['top', 'left', 'right']}>

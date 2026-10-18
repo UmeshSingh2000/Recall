@@ -1,6 +1,8 @@
-import type { SQLiteDatabase } from "expo-sqlite";
 import { notifyGitCommitLogged } from "./gitCommitEvents";
 import type { WorkLogType } from "../types";
+import { applyGitCommit } from "./workspace";
+import { store } from "../store";
+import { invalidateTicket } from "../store/workspaceSlice";
 
 export type GitCommitEvent = {
   type: "git_commit";
@@ -79,90 +81,35 @@ export function isGitCommitEvent(value: unknown): value is GitCommitEvent {
   return parseGitCommitPayload(value) !== null;
 }
 
-export async function applyGitCommitEvent(
-  db: SQLiteDatabase,
-  event: GitCommitEvent,
-): Promise<boolean> {
+export async function applyGitCommitEvent(event: GitCommitEvent): Promise<boolean> {
   const key = dedupeKey(event);
   if (processedKeys.has(key)) {
     return false;
   }
-
-  const ticket = await db.getFirstAsync<{ id: number }>(
-    "SELECT id FROM tickets WHERE ticket_key = ? COLLATE NOCASE",
-    event.ticketKey.trim(),
-  );
-
-  if (!ticket) {
-    console.warn(`Git commit ignored: no ticket found for ${event.ticketKey}.`);
-    return false;
-  }
-
-  if (event.commitHash) {
-    const existing = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM work_logs WHERE ticket_id = ? AND commit_hash = ?",
-      ticket.id,
-      event.commitHash,
-    );
-    if (existing) {
-      processedKeys.add(key);
-      return false;
-    }
-  }
-
   processedKeys.add(key);
 
-  const now = event.receivedAt || new Date().toISOString();
-  const description = event.description || event.commitMessage || "Git commit received.";
-  const logType: WorkLogType = event.logType || "code";
-  let inserted = false;
-
-  await db.withTransactionAsync(async () => {
-    if (event.commitHash) {
-      const existingInTx = await db.getFirstAsync<{ id: number }>(
-        "SELECT id FROM work_logs WHERE ticket_id = ? AND commit_hash = ?",
-        ticket.id,
-        event.commitHash,
-      );
-      if (existingInTx) {
-        return;
-      }
+  try {
+    const result = await applyGitCommit({
+      ticketKey: event.ticketKey,
+      commitHash: event.commitHash,
+      commitMessage: event.commitMessage,
+      description: event.description,
+      files: event.files,
+      logType: event.logType || "code",
+      nextAction: event.nextAction,
+      receivedAt: event.receivedAt,
+    });
+    if (!result.applied || result.ticketId == null) {
+      return false;
     }
-
-    inserted = true;
-    await db.runAsync(
-      "INSERT INTO work_logs (ticket_id, type, description, what_remains, next_action, commit_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ticket.id,
-      logType,
-      description,
-      "",
-      event.nextAction || "",
-      event.commitHash || "",
-      now,
-    );
-
-    for (const filePath of event.files) {
-      await db.runAsync(
-        "INSERT INTO ticket_files (ticket_id, file_path, created_at) VALUES (?, ?, ?)",
-        ticket.id,
-        filePath,
-        now,
-      );
+    store.dispatch(invalidateTicket(result.ticketId));
+    notifyGitCommitLogged(result.ticketId);
+    return true;
+  } catch (error) {
+    const status = (error as { response?: { status?: number } }).response?.status;
+    if (status !== 404) {
+      processedKeys.delete(key);
     }
-
-    await db.runAsync(
-      "UPDATE tickets SET next_action = CASE WHEN ? <> '' THEN ? ELSE next_action END, updated_at = ? WHERE id = ?",
-      event.nextAction || "",
-      event.nextAction || "",
-      now,
-      ticket.id,
-    );
-  });
-
-  if (!inserted) {
-    return false;
+    throw error;
   }
-
-  notifyGitCommitLogged(ticket.id);
-  return true;
 }

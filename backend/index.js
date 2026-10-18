@@ -13,7 +13,7 @@ const webSocketServer = new WebSocketServer({ server });
 
 setWebSocketServer(webSocketServer);
 
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 registerRoutes(app);
 
 server.listen(port, "0.0.0.0", () => {

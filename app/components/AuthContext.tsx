@@ -1,5 +1,7 @@
 import { clearAuthToken, hasAuthToken, saveAuthToken } from "@/lib/api";
 import { createContext, useContext, useEffect, useState } from "react";
+import { useAppDispatch } from "../store/hooks";
+import { clearWorkspace } from "../store/workspaceSlice";
 
 type AuthContextType = {
     isLoading: boolean;
@@ -11,6 +13,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AuthProvider = ({children}: {children: React.ReactNode}) => {
+    const dispatch = useAppDispatch();
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     useEffect(() => {
@@ -40,6 +43,7 @@ const AuthProvider = ({children}: {children: React.ReactNode}) => {
     const logout = async () => {
         try {
             await clearAuthToken();
+            dispatch(clearWorkspace());
             setIsAuthenticated(false);
         } catch (error) {
             console.error("Logout failed:", error);
@@ -49,6 +53,7 @@ const AuthProvider = ({children}: {children: React.ReactNode}) => {
     const login = async (token: string) => {
         try {
             setLoading(true);
+            dispatch(clearWorkspace());
             await saveAuthToken(token);
             setIsAuthenticated(true);
         }
