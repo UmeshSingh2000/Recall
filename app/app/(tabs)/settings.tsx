@@ -178,7 +178,7 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>
           <Text style={styles.aboutText}>A quiet place for the context behind your code.</Text>
-          <Text style={styles.version}>Version 1.2.1 · Online</Text>
+          <Text style={styles.version}>Version 2.0.0 · Online</Text>
         </View>
       </ScrollView>
       <ConfirmDialog
