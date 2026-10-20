@@ -10,12 +10,14 @@ model Project {
   id             Int      @id @default(autoincrement())
   name           String
   description    String   @default("")
-  repository_url String   @default("")
+  repository_url String   @default("")  
   created_at     DateTime
   updated_at     DateTime
+  user_id        String
 
   tickets        Ticket[]
 
+  @@index([user_id])
   @@map("projects")
 }
 

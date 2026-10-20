@@ -19,12 +19,14 @@ import {
 } from "../services/workspaceSerialize.js";
 import {
   cacheAside,
-  invalidateCache,
-  PROJECTS_CACHE_KEY,
-  projectCacheKey,
-  TICKETS_CACHE_KEY,
+  ticketsCacheKey,
   TICKETS_CACHE_TTL_SECONDS,
 } from "../services/cache.js";
+import {
+  getAuthUserId,
+  invalidateUserWorkspaceCache,
+  ticketsOwnedByUserWhere,
+} from "../services/workspaceAuth.js";
 
 const ticketListInclude = {
   project: { select: { name: true } },
@@ -35,13 +37,29 @@ const ticketListInclude = {
   },
 };
 
-export async function listTickets(_req, res) {
+async function findOwnedTicket(userId, ticketId) {
+  return prisma.ticket.findFirst({
+    where: { id: ticketId, ...ticketsOwnedByUserWhere(userId) },
+  });
+}
+
+async function findOwnedProject(userId, projectId) {
+  return prisma.project.findFirst({
+    where: { id: projectId, user_id: userId },
+  });
+}
+
+export async function listTickets(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const tickets = await cacheAside(
-      TICKETS_CACHE_KEY,
+      ticketsCacheKey(userId),
       TICKETS_CACHE_TTL_SECONDS,
       async () => {
         const rows = await prisma.ticket.findMany({
+          where: ticketsOwnedByUserWhere(userId),
           orderBy: { updated_at: "desc" },
           include: ticketListInclude,
         });
@@ -57,8 +75,16 @@ export async function listTickets(_req, res) {
 
 export async function createTicket(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const body = parseRequest(res, createTicketBodySchema, req.body ?? {});
     if (!body) return;
+
+    const project = await findOwnedProject(userId, body.project_id);
+    if (!project) {
+      return res.status(400).json({ error: "Project not found." });
+    }
 
     const now = new Date();
     const ticket = await prisma.ticket.create({
@@ -75,16 +101,11 @@ export async function createTicket(req, res) {
       },
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(body.project_id));
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId, body.project_id);
     return res.status(201).json({ id: ticket.id });
   } catch (error) {
     if (error?.code === "P2002") {
       return res.status(400).json({ error: "A ticket with that key already exists." });
-    }
-    if (error?.code === "P2003") {
-      return res.status(400).json({ error: "Project not found." });
     }
     console.error("Create ticket failed:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -93,11 +114,14 @@ export async function createTicket(req, res) {
 
 export async function getTicket(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
 
-    const ticket = await prisma.ticket.findUnique({
-      where: { id: params.id },
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: params.id, ...ticketsOwnedByUserWhere(userId) },
       select: {
         id: true,
         project_id: true,
@@ -201,10 +225,25 @@ export async function getTicket(req, res) {
 
 export async function updateTicket(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
     const body = parseRequest(res, updateTicketBodySchema, req.body ?? {});
     if (!body) return;
+
+    const existing = await findOwnedTicket(userId, params.id);
+    if (!existing) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    if (body.project_id !== undefined) {
+      const project = await findOwnedProject(userId, body.project_id);
+      if (!project) {
+        return res.status(400).json({ error: "Project not found." });
+      }
+    }
 
     const data = { updated_at: new Date() };
     for (const key of [
@@ -231,14 +270,12 @@ export async function updateTicket(req, res) {
       include: ticketListInclude,
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(ticket.project_id));
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId, existing.project_id);
+    if (ticket.project_id !== existing.project_id) {
+      await invalidateUserWorkspaceCache(userId, ticket.project_id);
+    }
     return res.status(200).json({ ticket: serializeTicket(ticket) });
   } catch (error) {
-    if (error?.code === "P2025") {
-      return res.status(404).json({ error: "Ticket not found" });
-    }
     if (error?.code === "P2002") {
       return res.status(400).json({ error: "A ticket with that key already exists." });
     }
@@ -249,17 +286,21 @@ export async function updateTicket(req, res) {
 
 export async function deleteTicket(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
-    const ticket = await prisma.ticket.delete({ where: { id: params.id } });
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(ticket.project_id));
-    await invalidateCache(TICKETS_CACHE_KEY);
-    return res.status(200).json({ message: "Ticket deleted" });
-  } catch (error) {
-    if (error?.code === "P2025") {
+
+    const ticket = await findOwnedTicket(userId, params.id);
+    if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
     }
+
+    await prisma.ticket.delete({ where: { id: ticket.id } });
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
+    return res.status(200).json({ message: "Ticket deleted" });
+  } catch (error) {
     console.error("Delete ticket failed:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -267,13 +308,16 @@ export async function deleteTicket(req, res) {
 
 export async function createWorkLog(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
     const body = parseRequest(res, createWorkLogBodySchema, req.body ?? {});
     if (!body) return;
 
     const now = new Date();
-    const ticket = await prisma.ticket.findUnique({ where: { id: params.id } });
+    const ticket = await findOwnedTicket(userId, params.id);
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
     }
@@ -313,9 +357,7 @@ export async function createWorkLog(req, res) {
       });
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(ticket.project_id));
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
     return res.status(201).json({ message: "Progress logged" });
   } catch (error) {
     console.error("Create work log failed:", error);
@@ -325,12 +367,15 @@ export async function createWorkLog(req, res) {
 
 export async function pauseTicket(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
     const body = parseRequest(res, pauseTicketBodySchema, req.body ?? {});
     if (!body) return;
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: params.id } });
+    const ticket = await findOwnedTicket(userId, params.id);
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
     }
@@ -367,9 +412,7 @@ export async function pauseTicket(req, res) {
       });
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(ticket.project_id));
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
     return res.status(201).json({ message: "Ticket paused" });
   } catch (error) {
     console.error("Pause ticket failed:", error);
@@ -379,11 +422,17 @@ export async function pauseTicket(req, res) {
 
 export async function getWorkLog(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, logIdParamSchema, req.params);
     if (!params) return;
 
-    const log = await prisma.workLog.findUnique({
-      where: { id: params.id },
+    const log = await prisma.workLog.findFirst({
+      where: {
+        id: params.id,
+        ticket: ticketsOwnedByUserWhere(userId),
+      },
       include: {
         ticket: { include: { project: true } },
       },
@@ -420,10 +469,20 @@ export async function getWorkLog(req, res) {
 
 export async function deleteWorkLog(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, logIdParamSchema, req.params);
     if (!params) return;
 
-    const log = await prisma.workLog.findUnique({ where: { id: params.id } });
+    const log = await prisma.workLog.findFirst({
+      where: {
+        id: params.id,
+        ticket: ticketsOwnedByUserWhere(userId),
+      },
+      include: { ticket: { select: { project_id: true } } },
+    });
+
     if (!log) {
       return res.status(404).json({ error: "Work log not found" });
     }
@@ -435,6 +494,7 @@ export async function deleteWorkLog(req, res) {
       await tx.workLog.delete({ where: { id: log.id } });
     });
 
+    await invalidateUserWorkspaceCache(userId, log.ticket.project_id);
     return res.status(200).json({ message: "Work log deleted" });
   } catch (error) {
     console.error("Delete work log failed:", error);
@@ -444,27 +504,36 @@ export async function deleteWorkLog(req, res) {
 
 export async function searchWorkspace(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const owned = ticketsOwnedByUserWhere(userId);
     const where = query
       ? {
-          OR: [
-            { ticket_key: { contains: query, mode: "insensitive" } },
-            { title: { contains: query, mode: "insensitive" } },
-            { description: { contains: query, mode: "insensitive" } },
-            { next_action: { contains: query, mode: "insensitive" } },
+          AND: [
+            owned,
             {
-              work_logs: {
-                some: {
-                  OR: [
-                    { description: { contains: query, mode: "insensitive" } },
-                    { commit_hash: { contains: query, mode: "insensitive" } },
-                  ],
+              OR: [
+                { ticket_key: { contains: query, mode: "insensitive" } },
+                { title: { contains: query, mode: "insensitive" } },
+                { description: { contains: query, mode: "insensitive" } },
+                { next_action: { contains: query, mode: "insensitive" } },
+                {
+                  work_logs: {
+                    some: {
+                      OR: [
+                        { description: { contains: query, mode: "insensitive" } },
+                        { commit_hash: { contains: query, mode: "insensitive" } },
+                      ],
+                    },
+                  },
                 },
-              },
+              ],
             },
           ],
         }
-      : {};
+      : owned;
 
     const tickets = await prisma.ticket.findMany({
       where,
@@ -492,11 +561,17 @@ export async function searchWorkspace(req, res) {
 
 export async function applyGitCommit(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const body = parseRequest(res, gitCommitBodySchema, req.body ?? {});
     if (!body) return;
 
     const ticket = await prisma.ticket.findFirst({
-      where: { ticket_key: { equals: body.ticketKey, mode: "insensitive" } },
+      where: {
+        ticket_key: { equals: body.ticketKey, mode: "insensitive" },
+        ...ticketsOwnedByUserWhere(userId),
+      },
     });
 
     if (!ticket) {
@@ -556,6 +631,7 @@ export async function applyGitCommit(req, res) {
       });
     });
 
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
     return res.status(201).json({ applied: true, ticketId: ticket.id });
   } catch (error) {
     console.error("Apply git commit failed:", error);

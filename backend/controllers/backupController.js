@@ -5,11 +5,11 @@ import {
   asText,
   iso,
 } from "../services/workspaceSerialize.js";
+import { getAuthUserId, invalidateUserWorkspaceCache } from "../services/workspaceAuth.js";
 import {
-  invalidateCache,
-  PROJECTS_CACHE_KEY,
-  TICKETS_CACHE_KEY,
-} from "../services/cache.js";
+  deleteUserWorkspace,
+  loadUserWorkspaceIds,
+} from "../services/workspaceBackup.js";
 
 const BACKUP_FORMAT = "recall-backup";
 const BACKUP_VERSION = 1;
@@ -18,10 +18,18 @@ function backupRows(rows, mapRow) {
   return rows.map(mapRow);
 }
 
-export async function exportBackup(_req, res) {
+function ticketIdFilter(ticketIds) {
+  return ticketIds.length ? { ticket_id: { in: ticketIds } } : { ticket_id: { in: [-1] } };
+}
+
+export async function exportBackup(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
+    const { projects, projectIds, ticketIds } = await loadUserWorkspaceIds(userId);
+
     const [
-      projects,
       tickets,
       progressItems,
       workLogs,
@@ -30,23 +38,50 @@ export async function exportBackup(_req, res) {
       workSessions,
       settings,
     ] = await Promise.all([
-      prisma.project.findMany({ orderBy: { id: "asc" } }),
-      prisma.ticket.findMany({ orderBy: { id: "asc" } }),
-      prisma.progressItem.findMany({ orderBy: { id: "asc" } }),
-      prisma.workLog.findMany({ orderBy: { id: "asc" } }),
-      prisma.ticketFile.findMany({ orderBy: { id: "asc" } }),
-      prisma.ticketNote.findMany({ orderBy: { id: "asc" } }),
-      prisma.workSession.findMany({ orderBy: { id: "asc" } }),
+      projectIds.length
+        ? prisma.ticket.findMany({
+            where: { project_id: { in: projectIds } },
+            orderBy: { id: "asc" },
+          })
+        : [],
+      prisma.progressItem.findMany({
+        where: ticketIdFilter(ticketIds),
+        orderBy: { id: "asc" },
+      }),
+      prisma.workLog.findMany({
+        where: ticketIdFilter(ticketIds),
+        orderBy: { id: "asc" },
+      }),
+      prisma.ticketFile.findMany({
+        where: ticketIdFilter(ticketIds),
+        orderBy: { id: "asc" },
+      }),
+      prisma.ticketNote.findMany({
+        where: ticketIdFilter(ticketIds),
+        orderBy: { id: "asc" },
+      }),
+      prisma.workSession.findMany({
+        where: ticketIdFilter(ticketIds),
+        orderBy: { id: "asc" },
+      }),
       prisma.setting.findMany({ orderBy: { key: "asc" } }),
     ]);
+
+    const fullProjects = projects.length
+      ? await prisma.project.findMany({
+          where: { user_id: userId },
+          orderBy: { id: "asc" },
+        })
+      : [];
 
     return res.status(200).json({
       format: BACKUP_FORMAT,
       version: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
       data: {
-        projects: backupRows(projects, (row) => ({
+        projects: backupRows(fullProjects, (row) => ({
           id: row.id,
+          user_id: row.user_id,
           name: row.name,
           description: row.description,
           repository_url: row.repository_url,
@@ -129,9 +164,10 @@ function requireRows(data, table) {
   return data[table];
 }
 
-function mapProjects(rows) {
+function mapProjects(rows, userId) {
   return rows.map((row) => ({
     id: asInt(row.id, "project id"),
+    user_id: userId,
     name: asText(row.name).trim(),
     description: asText(row.description),
     repository_url: asText(row.repository_url),
@@ -241,12 +277,17 @@ async function resetSequence(tx, table) {
 
 export async function importBackup(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const body = req.body ?? {};
     if (body.format !== BACKUP_FORMAT || body.version !== BACKUP_VERSION) {
       return res.status(400).json({ error: "This file is not a compatible Recall backup." });
     }
 
-    const projects = mapProjects(requireRows(body.data, "projects")).filter((row) => row.name);
+    const projects = mapProjects(requireRows(body.data, "projects"), userId).filter(
+      (row) => row.name,
+    );
     const tickets = mapTickets(requireRows(body.data, "tickets")).filter(
       (row) => row.ticket_key && row.title,
     );
@@ -259,14 +300,7 @@ export async function importBackup(req, res) {
 
     await prisma.$transaction(
       async (tx) => {
-        await tx.progressItem.deleteMany();
-        await tx.workLog.deleteMany();
-        await tx.ticketFile.deleteMany();
-        await tx.ticketNote.deleteMany();
-        await tx.workSession.deleteMany();
-        await tx.ticket.deleteMany();
-        await tx.project.deleteMany();
-        await tx.setting.deleteMany();
+        await deleteUserWorkspace(tx, userId);
 
         if (projects.length) await tx.project.createMany({ data: projects });
         if (tickets.length) await tx.ticket.createMany({ data: tickets });
@@ -275,7 +309,14 @@ export async function importBackup(req, res) {
         if (ticketFiles.length) await tx.ticketFile.createMany({ data: ticketFiles });
         if (ticketNotes.length) await tx.ticketNote.createMany({ data: ticketNotes });
         if (workSessions.length) await tx.workSession.createMany({ data: workSessions });
-        if (settings.length) await tx.setting.createMany({ data: settings });
+
+        for (const setting of settings) {
+          await tx.setting.upsert({
+            where: { key: setting.key },
+            create: setting,
+            update: { value: setting.value },
+          });
+        }
 
         for (const table of [
           "projects",
@@ -292,8 +333,7 @@ export async function importBackup(req, res) {
       { timeout: 60000 },
     );
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId);
     return res.status(200).json({
       message: "Backup imported",
       counts: {
@@ -311,20 +351,15 @@ export async function importBackup(req, res) {
   }
 }
 
-export async function deleteAllData(_req, res) {
+export async function deleteAllData(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     await prisma.$transaction(async (tx) => {
-      await tx.progressItem.deleteMany();
-      await tx.workLog.deleteMany();
-      await tx.ticketFile.deleteMany();
-      await tx.ticketNote.deleteMany();
-      await tx.workSession.deleteMany();
-      await tx.ticket.deleteMany();
-      await tx.project.deleteMany();
-      await tx.setting.deleteMany();
+      await deleteUserWorkspace(tx, userId);
     });
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(TICKETS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId);
     return res.status(200).json({ message: "All data deleted" });
   } catch (error) {
     console.error("Delete all data failed:", error);

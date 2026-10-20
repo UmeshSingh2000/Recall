@@ -7,12 +7,14 @@ import {
 } from "../validators/projectSchemas.js";
 import {
   cacheAside,
-  invalidateCache,
-  PROJECTS_CACHE_KEY,
   PROJECTS_CACHE_TTL_SECONDS,
   projectCacheKey,
-  TICKETS_CACHE_KEY,
+  projectsCacheKey,
 } from "../services/cache.js";
+import {
+  getAuthUserId,
+  invalidateUserWorkspaceCache,
+} from "../services/workspaceAuth.js";
 import {
   projectCounts,
   serializeProject,
@@ -28,15 +30,19 @@ const ticketListInclude = {
   },
 };
 
-export async function listProjects(_req, res) {
+export async function listProjects(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const projects = await cacheAside(
-      PROJECTS_CACHE_KEY,
+      projectsCacheKey(userId),
       PROJECTS_CACHE_TTL_SECONDS,
       async () => {
         const rows = await prisma.project.findMany({
           orderBy: { name: "asc" },
           include: { tickets: { select: { status: true } } },
+          where: { user_id: userId },
         });
 
         return rows.map((project) =>
@@ -54,13 +60,19 @@ export async function listProjects(_req, res) {
 
 export async function createProject(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+    console.log("createProject", userId)
+
     const body = parseRequest(res, createProjectBodySchema, req.body ?? {});
+    console.log("createProject body", body) 
     if (!body) return;
 
     const now = new Date();
     const project = await prisma.project.create({
       data: {
         name: body.name,
+        user_id: userId,
         description: body.description,
         repository_url: body.repository_url,
         created_at: now,
@@ -68,7 +80,7 @@ export async function createProject(req, res) {
       },
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
+    await invalidateUserWorkspaceCache(userId);
     return res.status(201).json({ id: project.id });
   } catch (error) {
     console.error("Create project failed:", error);
@@ -78,27 +90,33 @@ export async function createProject(req, res) {
 
 export async function updateProject(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, projectIdParamSchema, req.params);
     if (!params) return;
     const body = parseRequest(res, updateProjectBodySchema, req.body ?? {});
     if (!body) return;
 
-    const project = await prisma.project.update({
-      where: { id: params.id },
+    const updated = await prisma.project.updateMany({
+      where: { id: params.id, user_id: userId },
       data: { ...body, updated_at: new Date() },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id: params.id, user_id: userId },
       include: { tickets: { select: { status: true } } },
     });
 
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(TICKETS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(params.id));
+    await invalidateUserWorkspaceCache(userId, params.id);
     return res
       .status(200)
       .json({ project: serializeProject(project, projectCounts(project.tickets)) });
   } catch (error) {
-    if (error?.code === "P2025") {
-      return res.status(404).json({ error: "Project not found" });
-    }
     console.error("Update project failed:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -106,15 +124,18 @@ export async function updateProject(req, res) {
 
 export async function getProject(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, projectIdParamSchema, req.params);
     if (!params) return;
 
     const result = await cacheAside(
-      projectCacheKey(params.id),
+      projectCacheKey(userId, params.id),
       PROJECTS_CACHE_TTL_SECONDS,
       async () => {
-        const project = await prisma.project.findUnique({
-          where: { id: params.id },
+        const project = await prisma.project.findFirst({
+          where: { id: params.id, user_id: userId },
           include: { tickets: { select: { status: true } } },
         });
 
@@ -148,18 +169,23 @@ export async function getProject(req, res) {
 
 export async function deleteProject(req, res) {
   try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
     const params = parseRequest(res, projectIdParamSchema, req.params);
     if (!params) return;
 
-    await prisma.project.delete({ where: { id: params.id } });
-    await invalidateCache(PROJECTS_CACHE_KEY);
-    await invalidateCache(TICKETS_CACHE_KEY);
-    await invalidateCache(projectCacheKey(params.id));
-    return res.status(200).json({ message: "Project deleted" });
-  } catch (error) {
-    if (error?.code === "P2025") {
+    const deleted = await prisma.project.deleteMany({
+      where: { id: params.id, user_id: userId },
+    });
+
+    if (deleted.count === 0) {
       return res.status(404).json({ error: "Project not found" });
     }
+
+    await invalidateUserWorkspaceCache(userId, params.id);
+    return res.status(200).json({ message: "Project deleted" });
+  } catch (error) {
     console.error("Delete project failed:", error);
     return res.status(500).json({ error: "Internal server error" });
   }

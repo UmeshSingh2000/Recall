@@ -2,7 +2,7 @@ const BACKUP_FORMAT = "recall-backup";
 const BACKUP_VERSION = 1;
 
 export const tableColumns = {
-  projects: ["id", "name", "description", "repository_url", "created_at", "updated_at"],
+  projects: ["id", "user_id", "name", "description", "repository_url", "created_at", "updated_at"],
   tickets: ["id", "project_id", "ticket_key", "title", "description", "status", "priority", "due_date", "my_context", "why_implementing", "how_it_works", "important_decisions", "next_action", "created_at", "updated_at", "completed_at"],
   progress_items: ["id", "ticket_id", "content", "completed", "position", "created_at", "completed_at"],
   work_logs: ["id", "ticket_id", "type", "description", "what_remains", "next_action", "commit_hash", "created_at"],

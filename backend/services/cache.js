@@ -1,9 +1,11 @@
 import { redis } from "../config/redis.js";
-export const PROJECTS_CACHE_KEY = "projects";
+
 export const PROJECTS_CACHE_TTL_SECONDS = 600;
-export const TICKETS_CACHE_KEY = "tickets";
 export const TICKETS_CACHE_TTL_SECONDS = 60;
-export const projectCacheKey = (projectId) => `project:${projectId}`;
+
+export const projectsCacheKey = (userId) => `projects:${userId}`;
+export const ticketsCacheKey = (userId) => `tickets:${userId}`;
+export const projectCacheKey = (userId, projectId) => `project:${userId}:${projectId}`;
 
 export async function cacheAside(key, ttlSeconds, fetchData) {
   // 1. Try Redis
