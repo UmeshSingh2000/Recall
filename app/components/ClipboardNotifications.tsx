@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -39,7 +40,8 @@ if (Platform.OS !== "web") {
   });
 }
 
-export function ClipboardNotifications() {
+export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: boolean }) {
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     container: { position: "relative", zIndex: 20 },
@@ -92,6 +94,12 @@ export function ClipboardNotifications() {
       shadowOffset: { width: 0, height: 10 },
       elevation: 12,
     },
+    screenPanel: {
+      flex: 1,
+      width: "100%",
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.canvas,
+    },
     panelHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -142,7 +150,7 @@ export function ClipboardNotifications() {
     pressed: { opacity: 0.65 },
   }));
   const [notifications, setNotifications] = useState<ClipboardEvent[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(fullScreen);
   const { width: screenWidth } = useWindowDimensions();
 
   const pushNotificationsEnabled = useRef(false);
@@ -380,33 +388,28 @@ export function ClipboardNotifications() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.bell}>
-        <Pressable
-          accessibilityLabel="Open clipboard notifications"
-          style={styles.bellTouch}
-          onPress={() => setIsOpen((open) => !open)}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={22}
-            color={colors.ink}
-          />
-
-          {notifications.length > 0 ? (
-            <View style={styles.count}>
-              <Text style={styles.countText}>
-                {notifications.length}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
+      {!fullScreen ? (
+        <View style={styles.bell}>
+          <Pressable
+            accessibilityLabel="Open clipboard notifications"
+            style={styles.bellTouch}
+            onPress={() => router.push("/notifications")}
+          >
+            <Ionicons name="notifications-outline" size={22} color={colors.ink} />
+            {notifications.length > 0 ? (
+              <View style={styles.count}>
+                <Text style={styles.countText}>{notifications.length}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
+      ) : null}
 
       {isOpen ? (
         <View
           style={[
-            styles.panel,
-            { width: Math.min(300, Math.max(0, screenWidth - spacing.xxl)) },
+            fullScreen ? styles.screenPanel : styles.panel,
+            !fullScreen && { width: Math.min(300, Math.max(0, screenWidth - spacing.xxl)) },
           ]}
         >
           <View style={styles.panelHeader}>
@@ -420,7 +423,7 @@ export function ClipboardNotifications() {
               </Text>
             </View>
 
-            <Pressable
+            {!fullScreen ? <Pressable
               accessibilityLabel="Close clipboard notifications"
               hitSlop={8}
               style={({ pressed }) => [
@@ -434,7 +437,7 @@ export function ClipboardNotifications() {
                 size={20}
                 color={colors.muted}
               />
-            </Pressable>
+            </Pressable> : null}
           </View>
 
           {notifications.length === 0 ? (

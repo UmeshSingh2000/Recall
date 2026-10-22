@@ -9,7 +9,7 @@ import { ClipboardNotifications } from "../../components/ClipboardNotifications"
 import ShimmerBlock from "../../components/ShimmerBlock";
 import { SectionHeading, TicketCard } from "../../components/ui";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
-import { radius, spacing, tabBarInset } from "../../constants/theme";
+import { radius, spacing, tabBarInset, workloadColors } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
 import { fetchTickets } from "../../store/workspaceSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -146,7 +146,7 @@ export default function TabOneScreen() {
           </View>
         </View>
         <View style={styles.stats}>
-          {[["Active", active, colors.green], ["Paused", paused, colors.orange], ["Done today", done, colors.blue]].map(([label, count, tone]) => (
+          {[["Active", active, workloadColors.active], ["Paused", paused, workloadColors.paused], ["Done today", done, workloadColors.done]].map(([label, count, tone]) => (
             <View style={styles.stat} key={label as string}>
               <Text style={styles.statLabel}>{label}</Text>
               <Text style={[styles.statValue, { color: tone as string }]}>{count}</Text>

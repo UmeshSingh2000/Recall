@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
-import { radius } from "../constants/theme";
+import { radius, workloadColors } from "../constants/theme";
 import { useTheme, useThemedStyles } from "./ThemeProvider";
 
 const AnimatedCircle = Animated.createAnimatedComponent(SvgCircle);
@@ -61,9 +61,9 @@ export function WorkloadGraph({
 
   const total = active + paused + done;
   const segments: Segment[] = [
-    { label: "Active", count: active, color: colors.heroKicker },
-    { label: "Paused", count: paused, color: colors.orange },
-    { label: "Done", count: done, color: colors.green },
+    { label: "Active", count: active, color: workloadColors.active },
+    { label: "Paused", count: paused, color: workloadColors.paused },
+    { label: "Done", count: done, color: workloadColors.done },
   ];
 
   return (
@@ -174,7 +174,7 @@ function AnimatedSegment({
   radius: number;
 }) {
   const animatedProps = useAnimatedProps(() => ({
-    strokeDashoffset: circumference - progress.value * circumference + offset,
+    strokeDashoffset: -offset + circumference * (1 - progress.value),
   }));
 
   return (

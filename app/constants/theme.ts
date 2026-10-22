@@ -25,6 +25,12 @@ export type ThemeColors = {
 
 export type PalettePreference = 'lime' | 'ocean' | 'rose' | 'violet';
 
+export const workloadColors = {
+  active: '#2D9CDB',
+  paused: '#F2A33A',
+  done: '#31B894',
+} as const;
+
 export const lightColors: ThemeColors = {
   ink: '#0B100D',
   muted: '#65716A',

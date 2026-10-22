@@ -63,6 +63,7 @@ function RootLayout() {
                     <Stack.Screen name="new-ticket" options={{ presentation: "modal" }} />
                     <Stack.Screen name="new-project" options={{ presentation: "modal" }} />
                     <Stack.Screen name="project/[id]" options={{ presentation: "card" }} />
+                    <Stack.Screen name="notifications" options={{ presentation: "card" }} />
                   </Stack>
                 </DatabaseGate>
               </AuthGate>
