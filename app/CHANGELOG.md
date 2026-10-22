@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-22
+
+### Added
+
+- Added an in-app notifications screen for clipboard notifications.
+
+### Changed
+
+- Enabled pagination for the ticket listing API and its client-side ticket loading flow.
+- Added the app color palette and updated theme handling across the interface.
+
 ## [2.0.0] - 2026-10-18
 
 ### Added
