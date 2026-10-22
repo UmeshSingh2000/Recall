@@ -65,7 +65,8 @@ export const fetchTickets = createAsyncThunk<Ticket[], RefreshArgs>(
   async (args, thunkApi) => {
     const cached = (thunkApi.getState() as ThunkState).workspace.tickets;
     if (cached && !args?.force) return cached;
-    return listTickets();
+    const result = await listTickets(1, 100);
+    return result.tickets;
   },
 );
 

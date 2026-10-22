@@ -52,21 +52,48 @@ async function findOwnedProject(userId, projectId) {
 export async function listTickets(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const tickets = await cacheAside(
-      ticketsCacheKey(userId),
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 12),
+    );
+    const skip = (page - 1) * limit;
+
+    const cacheKey = `${ticketsCacheKey(userId)}:page:${page}:limit:${limit}`;
+
+    const result = await cacheAside(
+      cacheKey,
       TICKETS_CACHE_TTL_SECONDS,
       async () => {
-        const rows = await prisma.ticket.findMany({
-          where: ticketsOwnedByUserWhere(userId),
-          orderBy: { updated_at: "desc" },
-          include: ticketListInclude,
-        });
-        return rows.map(serializeTicket);
+        const where = ticketsOwnedByUserWhere(userId);
+
+        const [rows, totalTickets] = await Promise.all([
+          prisma.ticket.findMany({
+            where,
+            orderBy: { updated_at: "desc" },
+            skip,
+            take: limit,
+            include: ticketListInclude,
+          }),
+          prisma.ticket.count({ where }),
+        ]);
+
+        return {
+          tickets: rows.map(serializeTicket),
+          pagination: {
+            page,
+            limit,
+            totalTickets,
+            totalPages: Math.ceil(totalTickets / limit),
+            hasNextPage: skip + rows.length < totalTickets,
+            hasPreviousPage: page > 1,
+          },
+        };
       },
     );
-    return res.status(200).json({ tickets });
+    return res.status(200).json(result);
   } catch (error) {
     console.error("List tickets failed:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -76,7 +103,7 @@ export async function listTickets(req, res) {
 export async function createTicket(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const body = parseRequest(res, createTicketBodySchema, req.body ?? {});
     if (!body) return;
@@ -115,7 +142,7 @@ export async function createTicket(req, res) {
 export async function getTicket(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
@@ -226,7 +253,7 @@ export async function getTicket(req, res) {
 export async function updateTicket(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
@@ -287,7 +314,7 @@ export async function updateTicket(req, res) {
 export async function deleteTicket(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
@@ -309,7 +336,7 @@ export async function deleteTicket(req, res) {
 export async function createWorkLog(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
@@ -368,7 +395,7 @@ export async function createWorkLog(req, res) {
 export async function pauseTicket(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
@@ -423,7 +450,7 @@ export async function pauseTicket(req, res) {
 export async function getWorkLog(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, logIdParamSchema, req.params);
     if (!params) return;
@@ -470,7 +497,7 @@ export async function getWorkLog(req, res) {
 export async function deleteWorkLog(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const params = parseRequest(res, logIdParamSchema, req.params);
     if (!params) return;
@@ -505,7 +532,7 @@ export async function deleteWorkLog(req, res) {
 export async function searchWorkspace(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const owned = ticketsOwnedByUserWhere(userId);
@@ -562,7 +589,7 @@ export async function searchWorkspace(req, res) {
 export async function applyGitCommit(req, res) {
   try {
     const userId = getAuthUserId(req, res);
-    if (!userId) return;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const body = parseRequest(res, gitCommitBodySchema, req.body ?? {});
     if (!body) return;

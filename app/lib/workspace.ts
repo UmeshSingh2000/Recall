@@ -29,9 +29,23 @@ export async function deleteProject(id: number) {
   await api.delete(`/api/projects/${id}`);
 }
 
-export async function listTickets() {
-  const response = await api.get<{ tickets: Ticket[] }>("/api/tickets");
-  return response.data.tickets;
+export type TicketPage = {
+  tickets: Ticket[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalTickets: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+};
+
+export async function listTickets(page = 1, limit = 12): Promise<TicketPage> {
+  const response = await api.get<TicketPage>("/api/tickets", {
+    params: { page, limit },
+  });
+  return response.data;
 }
 
 export async function createTicket(input: {

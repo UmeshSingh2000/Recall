@@ -1,5 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
   RefreshControl,
   ScrollView,
   Text,
@@ -18,8 +20,7 @@ import {
   TicketCard,
 } from "../../components/ui";
 import type { Ticket, TicketStatus } from "../../types";
-import { fetchTickets } from '../../store/workspaceSlice';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { listTickets } from "../../lib/workspace";
 
 function TicketListSkeleton() {
   const styles = useThemedStyles((colors) => ({
@@ -136,25 +137,56 @@ export default function TicketsScreen() {
     list: { paddingBottom: tabBarInset },
   }));
   const router = useRouter();
-  const dispatch = useAppDispatch();
-  const ticketsData = useAppSelector((state) => state.workspace.tickets);
-  const tickets = ticketsData ?? [];
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [nextPage, setNextPage] = useState(2);
+  const loadingMoreRef = useRef(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("all");
   const [refreshing, setRefreshing] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
 
-  const loadTickets = useCallback((force = false) => {
-    return dispatch(fetchTickets({ force })).unwrap()
-      .catch((error) => {
-        console.warn("Unable to load tickets:", error);
+  const loadTickets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await listTickets(1);
+      setTickets(result.tickets);
+      setHasNextPage(result.pagination.hasNextPage);
+      setNextPage(2);
+    } catch (error) {
+      console.warn("Unable to load tickets:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadMoreTickets = useCallback(async () => {
+    if (loading || loadingMoreRef.current || !hasNextPage) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const result = await listTickets(nextPage);
+      setTickets((current) => {
+        const existingIds = new Set(current.map((ticket) => ticket.id));
+        const newTickets = result.tickets.filter((ticket) => !existingIds.has(ticket.id));
+        return [...current, ...newTickets];
       });
-  }, [dispatch]);
+      setHasNextPage(result.pagination.hasNextPage);
+      setNextPage((page) => page + 1);
+    } catch (error) {
+      console.warn("Unable to load more tickets:", error);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [hasNextPage, loading, nextPage]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadTickets(true);
+      await loadTickets();
     } finally {
       setRefreshing(false);
     }
@@ -166,7 +198,7 @@ export default function TicketsScreen() {
     }, [loadTickets]),
   );
 
-  if (ticketsData === null) {
+  if (loading && tickets.length === 0) {
     return (
       <Screen title="Tickets" subtitle="Your workspace">
         <TicketListSkeleton />
@@ -197,46 +229,9 @@ export default function TicketsScreen() {
         </Pressable>
       }
     >
-      <View style={styles.searchRow}>
-        <SearchInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search tickets..."
-          style={styles.searchField}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Filter tickets"
-          onPress={() => setFilterMenuOpen((open) => !open)}
-          style={[styles.filterButton, filter !== "all" && styles.filterButtonActive]}
-        >
-          <Ionicons name="options-outline" size={20} color={filter !== "all" ? "#fff" : colors.ink} />
-        </Pressable>
-        {filterMenuOpen ? (
-          <View style={styles.filterMenu}>
-            {filters.map((item) => (
-              <Pressable
-                key={item.value}
-                onPress={() => {
-                  setFilter(item.value);
-                  setFilterMenuOpen(false);
-                }}
-                style={[styles.menuItem, filter === item.value && styles.menuItemActive]}
-              >
-                <Text style={[styles.menuText, filter === item.value && styles.menuTextActive]}>
-                  {item.label}
-                </Text>
-                {filter === item.value ? <Ionicons name="checkmark" size={17} color="#fff" /> : null}
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.sort}>
-        <Text style={styles.sortLabel}>Recently updated</Text>
-        <Text style={styles.sortIcon}>↕</Text>
-      </View>
-      <ScrollView
+      <FlatList
+        data={shown}
+        keyExtractor={(ticket) => String(ticket.id)}
         showsVerticalScrollIndicator={false}
         bounces
         alwaysBounceVertical
@@ -244,16 +239,48 @@ export default function TicketsScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />
         }
-      >
-        {shown.length ? (
-          shown.map((ticket) => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              onPress={() => router.push(`/ticket/${ticket.id}`)}
-            />
-          ))
-        ) : (
+        onEndReached={loadMoreTickets}
+        onEndReachedThreshold={0.4}
+        ListHeaderComponent={
+          <>
+            <View style={styles.searchRow}>
+              <SearchInput value={search} onChangeText={setSearch} placeholder="Search tickets..." style={styles.searchField} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Filter tickets"
+                onPress={() => setFilterMenuOpen((open) => !open)}
+                style={[styles.filterButton, filter !== "all" && styles.filterButtonActive]}
+              >
+                <Ionicons name="options-outline" size={20} color={filter !== "all" ? "#fff" : colors.ink} />
+              </Pressable>
+              {filterMenuOpen ? (
+                <View style={styles.filterMenu}>
+                  {filters.map((item) => (
+                    <Pressable
+                      key={item.value}
+                      onPress={() => {
+                        setFilter(item.value);
+                        setFilterMenuOpen(false);
+                      }}
+                      style={[styles.menuItem, filter === item.value && styles.menuItemActive]}
+                    >
+                      <Text style={[styles.menuText, filter === item.value && styles.menuTextActive]}>{item.label}</Text>
+                      {filter === item.value ? <Ionicons name="checkmark" size={17} color="#fff" /> : null}
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.sort}>
+              <Text style={styles.sortLabel}>Recently updated</Text>
+              <Text style={styles.sortIcon}>↕</Text>
+            </View>
+          </>
+        }
+        renderItem={({ item }) => (
+          <TicketCard ticket={item} onPress={() => router.push(`/ticket/${item.id}`)} />
+        )}
+        ListEmptyComponent={
           <EmptyState
             icon="file-tray-outline"
             title="No tickets found"
@@ -261,8 +288,11 @@ export default function TicketsScreen() {
             action="Add ticket"
             onAction={() => router.push("/new-ticket")}
           />
-        )}
-      </ScrollView>
+        }
+        ListFooterComponent={
+          loadingMore ? <ActivityIndicator color={colors.green} style={{ paddingVertical: 16 }} /> : null
+        }
+      />
     </Screen>
   );
 }
