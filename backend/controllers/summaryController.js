@@ -1,5 +1,7 @@
 import { generateWithGroq } from "../services/groqService.js";
 import { buildTicketSummaryPrompt } from "../services/ticketSummaryService.js";
+import prisma from "../config/prisma.js";
+
 
 export async function generateSummary(req, res) {
   const { ticket, project, progress_items, work_logs, ticket_files, ticket_notes, work_sessions } =
@@ -15,6 +17,15 @@ export async function generateSummary(req, res) {
     return res.status(400).json({
       error: "The ticket must include a non-empty title.",
     });
+  }
+
+  const existingTicket = await prisma.ticket.findUnique({
+    where: { id: ticket.id },
+    select: { summary: true },
+  });
+
+  if (existingTicket?.summary) {
+    return res.status(200).json({ summary: existingTicket.summary });
   }
 
   const ticketContext = buildTicketSummaryPrompt({
@@ -52,6 +63,13 @@ export async function generateSummary(req, res) {
     if (!summary.trim()) {
       return res.status(502).json({ error: "Failed to generate a summary." });
     }
+
+    await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        summary,
+      }
+    })
 
     return res.status(200).json({ summary });
   } catch (error) {

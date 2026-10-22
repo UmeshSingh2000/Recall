@@ -10,11 +10,10 @@ model Project {
   id             Int      @id @default(autoincrement())
   name           String
   description    String   @default("")
-  repository_url String   @default("")  
+  repository_url String   @default("")
   created_at     DateTime
   updated_at     DateTime
   user_id        String
-
   tickets        Ticket[]
 
   @@index([user_id])
@@ -29,7 +28,6 @@ model ProgressItem {
   position     Int       @default(0)
   created_at   DateTime
   completed_at DateTime?
-
   ticket       Ticket    @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([ticket_id])
@@ -45,7 +43,6 @@ model WorkLog {
   next_action  String   @default("")
   commit_hash  String   @default("")
   created_at   DateTime
-
   ticket       Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([ticket_id, created_at])
@@ -57,7 +54,6 @@ model TicketFile {
   ticket_id  Int
   file_path  String
   created_at DateTime
-
   ticket     Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([ticket_id])
@@ -70,7 +66,6 @@ model TicketNote {
   content    String
   created_at DateTime
   updated_at DateTime
-
   ticket     Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([ticket_id])
@@ -86,7 +81,6 @@ model WorkSession {
   pause_reason String    @default("")
   summary      String    @default("")
   next_action  String    @default("")
-
   ticket       Ticket    @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([ticket_id, started_at])
@@ -101,29 +95,29 @@ model Setting {
 }
 
 model Ticket {
-  id                  Int      @id @default(autoincrement())
+  id                  Int            @id @default(autoincrement())
   project_id          Int
-  ticket_key          String   @unique
+  ticket_key          String         @unique
   title               String
-  description         String   @default("")
-  status              String   @default("in_progress")
-  priority            String   @default("medium")
+  description         String         @default("")
+  status              String         @default("in_progress")
+  priority            String         @default("medium")
   due_date            DateTime?
-  my_context          String   @default("")
-  why_implementing    String   @default("")
-  how_it_works        String   @default("")
-  important_decisions String   @default("")
-  next_action         String   @default("")
+  my_context          String         @default("")
+  why_implementing    String         @default("")
+  how_it_works        String         @default("")
+  important_decisions String         @default("")
+  next_action         String         @default("")
   created_at          DateTime
   updated_at          DateTime
   completed_at        DateTime?
-
-  project             Project        @relation(fields: [project_id], references: [id], onDelete: Cascade)
   progress_items      ProgressItem[]
-  work_logs           WorkLog[]
   ticket_files        TicketFile[]
   ticket_notes        TicketNote[]
+  project             Project        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  work_logs           WorkLog[]
   work_sessions       WorkSession[]
+  summary             String?
 
   @@index([project_id])
   @@map("tickets")
