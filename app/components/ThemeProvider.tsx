@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { readAppearance, writeAppearance } from '../lib/appearance';
+import { readAppearance, readPalette, writeAppearance, writePalette } from '../lib/appearance';
 import { StyleSheet, useColorScheme as useSystemColorScheme, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
-import { darkColors, lightColors, type ThemeColors } from '../constants/theme';
+import { getThemeColors, type PalettePreference, type ThemeColors } from '../constants/theme';
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
 
 type ThemeContextValue = {
   appearance: AppearancePreference;
   setAppearance: (preference: AppearancePreference) => Promise<void>;
+  palette: PalettePreference;
+  setPalette: (palette: PalettePreference) => Promise<void>;
   colorScheme: 'light' | 'dark';
   isDark: boolean;
   colors: ThemeColors;
@@ -20,17 +22,25 @@ function parseAppearance(value: string | undefined): AppearancePreference | null
   return null;
 }
 
+function parsePalette(value: string | undefined): PalettePreference | null {
+  if (value === 'lime' || value === 'ocean' || value === 'rose' || value === 'violet') return value;
+  return null;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useSystemColorScheme();
   const [appearance, setAppearanceState] = useState<AppearancePreference>('system');
+  const [palette, setPaletteState] = useState<PalettePreference>('lime');
 
   useEffect(() => {
     let active = true;
-    readAppearance()
-      .then((value) => {
+    Promise.all([readAppearance(), readPalette()])
+      .then(([appearanceValue, paletteValue]) => {
         if (!active) return;
-        const parsed = parseAppearance(value ?? undefined);
-        if (parsed) setAppearanceState(parsed);
+        const parsedAppearance = parseAppearance(appearanceValue ?? undefined);
+        const parsedPalette = parsePalette(paletteValue ?? undefined);
+        if (parsedAppearance) setAppearanceState(parsedAppearance);
+        if (parsedPalette) setPaletteState(parsedPalette);
       })
       .catch((error) => {
         console.warn('Unable to load appearance preference:', error);
@@ -45,6 +55,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     await writeAppearance(preference);
   }, []);
 
+  const setPalette = useCallback(async (nextPalette: PalettePreference) => {
+    setPaletteState(nextPalette);
+    await writePalette(nextPalette);
+  }, []);
+
   const colorScheme: 'light' | 'dark' =
     appearance === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance;
 
@@ -52,11 +67,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       appearance,
       setAppearance,
+      palette,
+      setPalette,
       colorScheme,
       isDark: colorScheme === 'dark',
-      colors: colorScheme === 'dark' ? darkColors : lightColors,
+      colors: getThemeColors(colorScheme, palette),
     }),
-    [appearance, colorScheme, setAppearance],
+    [appearance, colorScheme, palette, setAppearance, setPalette],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
@@ -84,3 +101,12 @@ export const appearanceLabels: Record<AppearancePreference, string> = {
 };
 
 export const appearanceOptions: AppearancePreference[] = ['system', 'light', 'dark'];
+
+export const paletteLabels: Record<PalettePreference, string> = {
+  lime: 'Lime',
+  ocean: 'Ocean',
+  rose: 'Rose',
+  violet: 'Violet',
+};
+
+export const paletteOptions: PalettePreference[] = ['lime', 'ocean', 'rose', 'violet'];

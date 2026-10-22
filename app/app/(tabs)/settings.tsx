@@ -6,11 +6,10 @@ import * as Sharing from "expo-sharing";
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
-import { appearanceLabels, appearanceOptions, useTheme, useThemedStyles } from "../../components/ThemeProvider";
+import { appearanceLabels, appearanceOptions, paletteLabels, paletteOptions, useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, Screen } from "../../components/ui";
 import { radius, tabBarInset } from "../../constants/theme";
 import { parseBackup } from "../../lib/backup";
-import { writeAppearance } from "../../lib/appearance";
 import { deleteAllOnlineData, exportOnlineBackup, importOnlineBackup } from "../../lib/workspace";
 import { useAppDispatch } from "../../store/hooks";
 import { clearWorkspace } from "../../store/workspaceSlice";
@@ -18,13 +17,14 @@ import { clearWorkspace } from "../../store/workspaceSlice";
 export default function SettingsScreen() {
   const { logout } = useAuth();
   const dispatch = useAppDispatch();
-  const { appearance, setAppearance, colors } = useTheme();
+  const { appearance, setAppearance, palette, setPalette, colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
     group: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 14, marginBottom: 8, marginLeft: 4 },
     panel: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, overflow: "hidden" },
     row: { minHeight: 54, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderBottomColor: colors.line, borderBottomWidth: 1 },
     rowIcon: { width: 28 },
+    paletteSwatch: { width: 20, height: 20, borderRadius: 10 },
     label: { color: colors.ink, flex: 1, fontSize: 14, fontWeight: "600" },
     value: { color: colors.muted, fontSize: 12 },
     toggle: { width: 42, height: 24, borderRadius: 12, backgroundColor: colors.line, padding: 3 },
@@ -109,7 +109,11 @@ export default function SettingsScreen() {
       dispatch(clearWorkspace());
       const appearance = backup.data.settings.find((row) => row.key === "appearance")?.value;
       if (appearance === "system" || appearance === "light" || appearance === "dark") {
-        await writeAppearance(appearance);
+        await setAppearance(appearance);
+      }
+      const palette = backup.data.settings.find((row) => row.key === "palette")?.value;
+      if (palette === "lime" || palette === "ocean" || palette === "rose" || palette === "violet") {
+        await setPalette(palette);
       }
       setStatus("Backup uploaded to the online database.");
     } catch (error) {
@@ -131,6 +135,19 @@ export default function SettingsScreen() {
               </View>
               <Text style={styles.label}>{appearanceLabels[item]}</Text>
               {appearance === item ? <Ionicons name="checkmark-circle" size={20} color={colors.green} /> : null}
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.group}>COLOR PALETTE</Text>
+        <View style={styles.panel}>
+          {paletteOptions.map((item) => (
+            <Pressable key={item} style={styles.row} onPress={() => setPalette(item)}>
+              <View style={styles.rowIcon}>
+                <View style={[styles.paletteSwatch, { backgroundColor: item === "lime" ? "#C2D83F" : item === "ocean" ? "#2D9CDB" : item === "rose" ? "#D95D8A" : "#8B6DD6" }]} />
+              </View>
+              <Text style={styles.label}>{paletteLabels[item]}</Text>
+              {palette === item ? <Ionicons name="checkmark-circle" size={20} color={colors.green} /> : null}
             </Pressable>
           ))}
         </View>
@@ -192,4 +209,3 @@ export default function SettingsScreen() {
     </Screen>
   );
 }
-

@@ -23,6 +23,8 @@ export type ThemeColors = {
   heroKicker: string;
 };
 
+export type PalettePreference = 'lime' | 'ocean' | 'rose' | 'violet';
+
 export const lightColors: ThemeColors = {
   ink: '#0B100D',
   muted: '#65716A',
@@ -72,6 +74,54 @@ export const darkColors: ThemeColors = {
   heroBorder: '#182019',
   heroKicker: '#31B894',
 };
+
+const paletteColors: Record<PalettePreference, { light: Partial<ThemeColors>; dark: Partial<ThemeColors> }> = {
+  lime: {
+    light: {},
+    dark: {},
+  },
+  ocean: {
+    light: {
+      green: '#2D9CDB',
+      greenSoft: '#DFF2FC',
+      heroKicker: '#2D9CDB',
+    },
+    dark: {
+      green: '#56B4E9',
+      greenSoft: '#102532',
+      heroKicker: '#56B4E9',
+    },
+  },
+  rose: {
+    light: {
+      green: '#D95D8A',
+      greenSoft: '#FBE5EF',
+      heroKicker: '#D95D8A',
+    },
+    dark: {
+      green: '#E987AB',
+      greenSoft: '#2B1721',
+      heroKicker: '#E987AB',
+    },
+  },
+  violet: {
+    light: {
+      green: '#8B6DD6',
+      greenSoft: '#EEE8FC',
+      heroKicker: '#8B6DD6',
+    },
+    dark: {
+      green: '#A994E6',
+      greenSoft: '#211A35',
+      heroKicker: '#A994E6',
+    },
+  },
+};
+
+export function getThemeColors(colorScheme: 'light' | 'dark', palette: PalettePreference): ThemeColors {
+  const base = colorScheme === 'dark' ? darkColors : lightColors;
+  return { ...base, ...paletteColors[palette][colorScheme] };
+}
 
 /** @deprecated Use `useTheme().colors` for theme-aware UI. */
 export const colors = lightColors;
