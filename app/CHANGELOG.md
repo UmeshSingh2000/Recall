@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added ticket image upload and management with gallery selection and camera capture.
+- Added horizontally scrollable ticket image galleries with loading shimmers and full-screen previews.
+- Added a maximum of 10 images per ticket with user-facing limit feedback.
+
+### Changed
+
+- Ticket images are stored in S3-compatible object storage and exposed through signed URLs.
+
 ## [2.0.1] - 2026-10-22
 
 ### Added
