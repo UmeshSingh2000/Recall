@@ -1,8 +1,10 @@
 import prisma from "../config/prisma.js";
+import { deleteTicketImageObject, uploadTicketImage } from "../config/objectStorage.js";
 import { parseRequest } from "../validators/parseRequest.js";
 import {
   createTicketBodySchema,
   createWorkLogBodySchema,
+  deleteTicketImageBodySchema,
   gitCommitBodySchema,
   pauseTicketBodySchema,
   ticketIdParamSchema,
@@ -163,6 +165,7 @@ export async function getTicket(req, res) {
         how_it_works: true,
         important_decisions: true,
         next_action: true,
+        images: true,
         created_at: true,
         updated_at: true,
         completed_at: true,
@@ -663,5 +666,79 @@ export async function applyGitCommit(req, res) {
   } catch (error) {
     console.error("Apply git commit failed:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function addTicketImage(req, res) {
+  try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const params = parseRequest(res, ticketIdParamSchema, req.params);
+    if (!params) return;
+
+    if (!req.file) {
+      return res.status(400).json({ error: "Image file is required." });
+    }
+
+    const ticket = await findOwnedTicket(userId, params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    if(ticket.images.length >= 10) {
+      return res.status(400).json({ error: "Maximum of 10 images per ticket is allowed." });
+    }
+
+    const imageUrl = await uploadTicketImage(req.file, ticket.id);
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        images: { push: imageUrl },
+        updated_at: new Date(),
+      },
+    });
+
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
+    return res.status(201).json({
+      image: imageUrl,
+      images: updatedTicket.images,
+    });
+  } catch (error) {
+    console.error("Add ticket image failed:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function deleteTicketImage(req, res) {
+  try {
+    const userId = getAuthUserId(req, res);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const params = parseRequest(res, ticketIdParamSchema, req.params);
+    if (!params) return;
+    const body = parseRequest(res, deleteTicketImageBodySchema, req.body ?? {});
+    if (!body) return;
+
+    const ticket = await findOwnedTicket(userId, params.id);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (!ticket.images.includes(body.image)) {
+      return res.status(404).json({ error: "Image not found on this ticket" });
+    }
+
+    await deleteTicketImageObject(body.image, ticket.id);
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        images: ticket.images.filter((image) => image !== body.image),
+        updated_at: new Date(),
+      },
+    });
+
+    await invalidateUserWorkspaceCache(userId, ticket.project_id);
+    return res.status(200).json({ images: updatedTicket.images });
+  } catch (error) {
+    console.error("Delete ticket image failed:", error);
+    return res.status(500).json({ error: "Could not delete image" });
   }
 }

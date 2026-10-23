@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { deleteAllData, exportBackup, importBackup } from "../controllers/backupController.js";
 import {
   createProject,
@@ -19,10 +20,30 @@ import {
   pauseTicket,
   searchWorkspace,
   updateTicket,
+  addTicketImage,
+  deleteTicketImage,
 } from "../controllers/ticketController.js";
 import { requireNeonAuth } from "../middleware/requireNeonAuth.js";
 
 const router = Router();
+const uploadTicketImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    callback(null, file.mimetype.startsWith("image/"));
+  },
+});
+const uploadSingleTicketImage = (req, res, next) => {
+  uploadTicketImage.single("image")(req, res, (error) => {
+    if (error?.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ error: "Image must be 10 MB or smaller." });
+    }
+    if (error) {
+      return res.status(400).json({ error: "A valid image file is required." });
+    }
+    return next();
+  });
+};
 router.use(requireNeonAuth);
 
 router.get("/api/projects", listProjects);
@@ -36,6 +57,8 @@ router.post("/api/tickets", createTicket);
 router.get("/api/tickets/:id", getTicket);
 router.patch("/api/tickets/:id", updateTicket);
 router.delete("/api/tickets/:id", deleteTicket);
+router.post("/api/tickets/:id/images", uploadSingleTicketImage, addTicketImage);
+router.delete("/api/tickets/:id/images", deleteTicketImage);
 router.post("/api/tickets/:id/logs", createWorkLog);
 router.post("/api/tickets/:id/pause", pauseTicket);
 

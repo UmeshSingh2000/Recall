@@ -118,6 +118,7 @@ model Ticket {
   work_logs           WorkLog[]
   work_sessions       WorkSession[]
   summary             String?
+  images              String[]       @default([])
 
   @@index([project_id])
   @@map("tickets")

@@ -79,6 +79,32 @@ export async function updateTicket(id: number, input: Partial<Ticket> & { comple
   return response.data.ticket;
 }
 
+export async function addTicketImage(
+  ticketId: number,
+  image: { uri: string; name?: string | null; type?: string | null },
+) {
+  const formData = new FormData();
+  formData.append("image", {
+    uri: image.uri,
+    name: image.name ?? "ticket-image.jpg",
+    type: image.type ?? "image/jpeg",
+  } as unknown as Blob);
+
+  const response = await api.post<{ image: string; images: string[] }>(
+    `/api/tickets/${ticketId}/images`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data;
+}
+
+export async function deleteTicketImage(ticketId: number, image: string) {
+  const response = await api.delete<{ images: string[] }>(`/api/tickets/${ticketId}/images`, {
+    data: { image },
+  });
+  return response.data;
+}
+
 export async function deleteTicket(id: number) {
   await api.delete(`/api/tickets/${id}`);
 }

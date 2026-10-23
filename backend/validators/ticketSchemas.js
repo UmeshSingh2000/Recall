@@ -6,6 +6,10 @@ export const ticketIdParamSchema = z.object({
   id: z.coerce.number().int().positive("Invalid ticket ID"),
 });
 
+export const deleteTicketImageBodySchema = z.object({
+  image: z.string().url("Invalid image URL"),
+});
+
 export const createTicketBodySchema = z.object({
   project_id: z.coerce.number().int().positive(),
   ticket_key: z.string().trim().min(1, "Ticket key is required"),

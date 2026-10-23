@@ -1,24 +1,32 @@
 import { Ionicons } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Toast from "react-native-toast-message";
 import {
     ActivityIndicator,
+    FlatList,
+    Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
     ScrollView,
     Text,
     TextInput,
+    useWindowDimensions,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AppLoader from "../../components/AppLoader";
 import { MarkdownContent } from "../../components/MarkdownContent";
+import ShimmerBlock from "../../components/ShimmerBlock";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { radius, spacing } from "../../constants/theme";
 import { generateTicketSummary } from "../../lib/api";
-import { type TicketDetail } from "../../lib/workspace";
+import { addTicketImage, deleteTicketImage, type TicketDetail } from "../../lib/workspace";
 import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
 import { relativeTime, titleCase } from "../../lib/format";
 import {
@@ -40,6 +48,7 @@ const statusOptions: { label: string; value: TicketStatus }[] = [
   { label: "Paused", value: "paused" },
   { label: "Blocked", value: "blocked" },
 ];
+const MAX_TICKET_IMAGES = 10;
 
 function useTicketDetailStyles() {
   return useThemedStyles((colors) => ({
@@ -111,6 +120,157 @@ function useTicketDetailStyles() {
       padding: 16,
     },
     summaryError: { color: colors.red, fontSize: 13, lineHeight: 19, marginBottom: 8 },
+    imageGrid: { flexDirection: "row", gap: 10, marginBottom: 10 },
+    imageButton: {
+      width: 96,
+      height: 96,
+      position: "relative",
+    },
+    imageShimmer: { position: "absolute", top: 0, left: 0 },
+    ticketImage: {
+      width: 96,
+      height: 96,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+    },
+    hiddenImage: { opacity: 0 },
+    imageEmpty: {
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderStyle: "dashed",
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 22,
+      marginBottom: 10,
+    },
+    imageEmptyIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.greenSoft,
+      marginBottom: 10,
+    },
+    imageEmptyTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+    imageEmptyText: {
+      color: colors.muted,
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign: "center",
+      marginTop: 4,
+    },
+    imageMore: {
+      position: "absolute",
+      right: 6,
+      bottom: 6,
+      backgroundColor: "rgba(0, 0, 0, 0.65)",
+      borderRadius: radius.pill,
+      minWidth: 24,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      alignItems: "center",
+    },
+    previewModal: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.96)" },
+    previewHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 2,
+      elevation: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 14,
+    },
+    previewCount: { color: "#fff", fontSize: 14, fontWeight: "800" },
+    previewActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+    previewDelete: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(229, 107, 107, 0.85)",
+    },
+    previewClose: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.16)",
+    },
+    previewPage: { justifyContent: "center", alignItems: "center" },
+    previewImage: { height: "100%" },
+    addImageButton: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      backgroundColor: colors.surface,
+    },
+    addImageText: { color: colors.charcoal, fontWeight: "800" },
+    imageActions: { flexDirection: "row", gap: 10 },
+    cameraButton: {
+      flex: 1,
+      borderRadius: radius.md,
+      padding: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      backgroundColor: colors.green,
+    },
+    cameraButtonText: { color: "#fff", fontWeight: "800" },
+    cameraModal: { flex: 1, backgroundColor: "#000" },
+    cameraSheet: {
+      flex: 1,
+      backgroundColor: "#000",
+      overflow: "hidden",
+    },
+    cameraHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 12,
+    },
+    cameraTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
+    cameraClose: { padding: 4 },
+    cameraPreview: { flex: 1, backgroundColor: colors.charcoal },
+    cameraFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 14,
+      backgroundColor: "#000",
+    },
+    captureButton: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      backgroundColor: "#fff",
+      borderColor: colors.green,
+      borderWidth: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      elevation: 4,
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 5,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    captureButtonDisabled: { opacity: 0.55 },
     section: { marginTop: 12, marginBottom: 12 },
     sectionTitle: {
       color: colors.ink,
@@ -236,6 +396,7 @@ function useTicketDetailStyles() {
 export default function TicketDetailScreen() {
   const { colors } = useTheme();
   const styles = useTicketDetailStyles();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -252,10 +413,20 @@ export default function TicketDetailScreen() {
   const [howItWorks, setHowItWorks] = useState("");
   const [importantDecisions, setImportantDecisions] = useState("");
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [imageToDelete, setImageToDelete] = useState<string | null>(null);
+  const [deletingImage, setDeletingImage] = useState(false);
   const [summary, setSummary] = useState("");
   const [summaryError, setSummaryError] = useState("");
   const [summarizing, setSummarizing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
+  const [cameraVisible, setCameraVisible] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [updatingStatus, setUpdatingStatus] = useState<TicketStatus | null>(null);
+  const { width: windowWidth } = useWindowDimensions();
   const [loadFinished, setLoadFinished] = useState(false);
   useMarkRouteInteractive(loadFinished || Boolean(ticket));
   const loadTicket = (force = false) => {
@@ -289,6 +460,11 @@ export default function TicketDetailScreen() {
       setImportantDecisions(cachedTicket.important_decisions || "");
     }
   }, [cachedTicket, ticket]);
+  useEffect(() => {
+    setLoadedImages(
+      Object.fromEntries((ticket?.images ?? []).map((image) => [image, false])),
+    );
+  }, [ticket?.images]);
   useEffect(() => {
     setLoadFinished(false);
     loadTicket();
@@ -374,6 +550,104 @@ export default function TicketDetailScreen() {
       );
     } finally {
       setSummarizing(false);
+    }
+  };
+  const uploadImage = async ({ uri, name, type }: { uri: string; name?: string | null; type?: string | null }) => {
+    if (ticket.images.length >= MAX_TICKET_IMAGES) {
+      Toast.show({
+        type: "error",
+        text1: "Image limit reached",
+        text2: "A ticket can have up to 10 images.",
+      });
+      return;
+    }
+    setUploadingImage(true);
+    setImageError("");
+    try {
+      const uploaded = await addTicketImage(ticket.id, { uri, name, type });
+      setTicket({ ...ticket, images: uploaded.images });
+      await loadTicket(true);
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Could not upload image.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+  const handleChooseImage = async () => {
+    if (uploadingImage) return;
+    if (ticket.images.length >= MAX_TICKET_IMAGES) {
+      Toast.show({
+        type: "error",
+        text1: "Image limit reached",
+        text2: "A ticket can have up to 10 images.",
+      });
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setImageError("Photo library access is required to select an image.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    await uploadImage({ uri: asset.uri, name: asset.fileName, type: asset.mimeType });
+  };
+  const handleOpenCamera = async () => {
+    if (uploadingImage) return;
+    if (ticket.images.length >= MAX_TICKET_IMAGES) {
+      Toast.show({
+        type: "error",
+        text1: "Image limit reached",
+        text2: "A ticket can have up to 10 images.",
+      });
+      return;
+    }
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission.granted) {
+      setImageError("Camera access is required to take a photo.");
+      return;
+    }
+    setImageError("");
+    setCameraVisible(true);
+  };
+  const handleTakePhoto = async () => {
+    if (uploadingImage || !cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
+      if (!photo) return;
+      setCameraVisible(false);
+      await uploadImage({
+        uri: photo.uri,
+        name: `ticket-${ticket.id}-${Date.now()}.jpg`,
+        type: "image/jpeg",
+      });
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Could not take photo.");
+    }
+  };
+  const handleDeleteImage = async () => {
+    if (!imageToDelete || deletingImage) return;
+    setDeletingImage(true);
+    try {
+      const deletedImage = imageToDelete;
+      const result = await deleteTicketImage(ticket.id, deletedImage);
+      setTicket({ ...ticket, images: result.images });
+      setPreviewImageIndex(null);
+      setImageToDelete(null);
+      await loadTicket(true);
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Could not delete image.");
+      setImageToDelete(null);
+    } finally {
+      setDeletingImage(false);
     }
   };
   return (
@@ -462,6 +736,84 @@ export default function TicketDetailScreen() {
         ) : null}
         <Section title="What is this ticket?">
           <Text style={styles.body}>{ticket.description}</Text>
+        </Section>
+        <Section title="Images">
+          {ticket.images.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.imageGrid}
+            >
+              {ticket.images.map((image, index) => (
+                <Pressable
+                  key={`${image}-${index}`}
+                  onPress={() => setPreviewImageIndex(index)}
+                  style={styles.imageButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Preview image ${index + 1}`}
+                >
+                  {loadedImages[image] ? null : (
+                    <ShimmerBlock
+                      width={96}
+                      height={96}
+                      borderRadius={radius.md}
+                      style={styles.imageShimmer}
+                    />
+                  )}
+                  <Image
+                    source={{ uri: image }}
+                    style={[styles.ticketImage, !loadedImages[image] && styles.hiddenImage]}
+                    onLoad={() =>
+                      setLoadedImages((current) => ({ ...current, [image]: true }))
+                    }
+                    onError={() =>
+                      setLoadedImages((current) => ({ ...current, [image]: true }))
+                    }
+                  />
+                  {loadedImages[image] ? (
+                    <View style={styles.imageMore} pointerEvents="none">
+                      <Ionicons name="expand-outline" size={13} color="#fff" />
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.imageEmpty}>
+              <View style={styles.imageEmptyIcon}>
+                <Ionicons name="images-outline" size={21} color={colors.green} />
+              </View>
+              <Text style={styles.imageEmptyTitle}>Add visual context</Text>
+              <Text style={styles.imageEmptyText}>
+                Upload screenshots, notes, or references to make this ticket easier to remember later.
+              </Text>
+            </View>
+          )}
+          <View style={styles.imageActions}>
+            <Pressable
+              style={styles.addImageButton}
+              onPress={handleChooseImage}
+              disabled={uploadingImage}
+            >
+              {uploadingImage ? (
+                <ActivityIndicator size="small" color={colors.green} />
+              ) : (
+                <Ionicons name="images-outline" size={18} color={colors.green} />
+              )}
+              <Text style={styles.addImageText}>
+                {uploadingImage ? "Uploading..." : "Gallery"}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.cameraButton}
+              onPress={handleOpenCamera}
+              disabled={uploadingImage}
+            >
+              <Ionicons name="camera-outline" size={18} color="#fff" />
+              <Text style={styles.cameraButtonText}>Camera</Text>
+            </Pressable>
+          </View>
+          {imageError ? <Text style={styles.summaryError}>{imageError}</Text> : null}
         </Section>
         <Section title="Last session">
           <Pressable
@@ -581,12 +933,125 @@ export default function TicketDetailScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal
+        visible={previewImageIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageIndex(null)}
+      >
+        <View style={styles.previewModal}>
+          {previewImageIndex !== null ? (
+            <FlatList
+              key={previewImageIndex}
+              data={ticket.images}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={previewImageIndex}
+              getItemLayout={(_, index) => ({ length: windowWidth, offset: windowWidth * index, index })}
+              onMomentumScrollEnd={(event) =>
+                setPreviewImageIndex(Math.round(event.nativeEvent.contentOffset.x / windowWidth))
+              }
+              renderItem={({ item }) => (
+                <View style={[styles.previewPage, { width: windowWidth }]}>
+                  <Image
+                    source={{ uri: item }}
+                    style={[styles.previewImage, { width: windowWidth }]}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              keyExtractor={(item, index) => `${item}-${index}`}
+            />
+          ) : null}
+          <View
+            style={[styles.previewHeader, { paddingTop: insets.top + 14 }]}
+            pointerEvents="auto"
+          >
+            <Text style={styles.previewCount} pointerEvents="none">
+              {(previewImageIndex ?? 0) + 1} / {ticket.images.length}
+            </Text>
+            <View style={styles.previewActions}>
+              <Pressable
+                onPress={() => {
+                  const image = ticket.images[previewImageIndex ?? 0];
+                  if (image) {
+                    setPreviewImageIndex(null);
+                    setImageToDelete(image);
+                  }
+                }}
+                style={styles.previewDelete}
+                accessibilityRole="button"
+                accessibilityLabel="Delete image"
+              >
+                <Ionicons name="trash-outline" size={20} color="#fff" />
+              </Pressable>
+              <Pressable
+                onPress={() => setPreviewImageIndex(null)}
+                style={styles.previewClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close image preview"
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={cameraVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent
+        onRequestClose={() => setCameraVisible(false)}
+      >
+        <View style={styles.cameraModal}>
+          <View style={styles.cameraSheet}>
+            <View style={[styles.cameraHeader, { paddingTop: insets.top + 12 }]}>
+              <Text style={styles.cameraTitle}>Take a photo</Text>
+              <Pressable
+                onPress={() => setCameraVisible(false)}
+                style={styles.cameraClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close camera"
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+            <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" />
+            <View
+              style={[
+                styles.cameraFooter,
+                { paddingBottom: Math.max(insets.bottom, 10) + 8 },
+              ]}
+            >
+              <Pressable
+                onPress={handleTakePhoto}
+                disabled={uploadingImage}
+                style={[styles.captureButton, uploadingImage && styles.captureButtonDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel="Take photo"
+              >
+                {uploadingImage ? <ActivityIndicator color={colors.green} /> : <Ionicons name="camera" size={24} color={colors.green} />}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <ConfirmDialog
         visible={deleteDialogVisible}
         title="Delete ticket?"
         message={`This will permanently delete ${ticket.ticket_key} and all its progress, logs, and notes.`}
         onCancel={() => setDeleteDialogVisible(false)}
         onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        visible={imageToDelete !== null}
+        title="Delete image?"
+        message="This permanently removes the image from this ticket and object storage. It cannot be undone."
+        confirmLabel={deletingImage ? "Deleting..." : "Delete image"}
+        onCancel={() => !deletingImage && setImageToDelete(null)}
+        onConfirm={handleDeleteImage}
       />
     </SafeAreaView>
   );

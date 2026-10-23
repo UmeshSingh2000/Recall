@@ -62,6 +62,7 @@ export function serializeTicket(ticket) {
     why_implementing: ticket.why_implementing ?? "",
     how_it_works: ticket.how_it_works ?? "",
     important_decisions: ticket.important_decisions ?? "",
+    images: ticket.images ?? [],
     created_at: iso(ticket.created_at),
     updated_at: iso(ticket.updated_at),
     completed_at: iso(ticket.completed_at),

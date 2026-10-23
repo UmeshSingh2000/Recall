@@ -25,6 +25,7 @@ export type Ticket = {
   why_implementing: string;
   how_it_works: string;
   important_decisions: string;
+  images: string[];
   updated_at: string;
   completed_at?: string | null;
   last_log?: string | null;
