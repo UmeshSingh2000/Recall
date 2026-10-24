@@ -12,6 +12,7 @@ import { radius, tabBarInset } from "../../constants/theme";
 import { parseBackup } from "../../lib/backup";
 import { deleteAllOnlineData, exportOnlineBackup, importOnlineBackup } from "../../lib/workspace";
 import { useAppDispatch } from "../../store/hooks";
+import { appVersion } from "../../lib/appVersion";
 import { clearWorkspace } from "../../store/workspaceSlice";
 
 export default function SettingsScreen() {
@@ -195,7 +196,7 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Text style={styles.aboutTitle}>Recall</Text>
           <Text style={styles.aboutText}>A quiet place for the context behind your code.</Text>
-          <Text style={styles.version}>Version 2.1.0 · Online</Text>
+          <Text style={styles.version}>Version {appVersion} · Online</Text>
         </View>
       </ScrollView>
       <ConfirmDialog

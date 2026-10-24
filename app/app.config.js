@@ -1,10 +1,11 @@
+const { version } = require("./package.json");
 
 const isProduction = process.env.APP_ENV === "production";
 export default {
   expo: {
     name: isProduction ? "Recall" : "Recall Dev",
     slug: "recall",
-    version: "2.1.0",
+    version,
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "recall",

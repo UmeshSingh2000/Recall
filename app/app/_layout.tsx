@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GitCommitListener } from "../components/GitCommitListener";
+import { OtaUpdateManager } from "../components/OtaUpdateManager";
 import { ThemeProvider, useTheme } from "../components/ThemeProvider";
 import AuthProvider, { useAuth } from "@/components/AuthContext";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -71,6 +72,7 @@ function RootLayout() {
           </ThemeProvider>
         </KeyboardProvider>
         <RootToast />
+        <OtaUpdateManager />
       </SafeAreaProvider>
     </Provider>
   );

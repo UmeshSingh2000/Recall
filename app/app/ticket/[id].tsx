@@ -461,9 +461,13 @@ export default function TicketDetailScreen() {
     }
   }, [cachedTicket, ticket]);
   useEffect(() => {
-    setLoadedImages(
-      Object.fromEntries((ticket?.images ?? []).map((image) => [image, false])),
-    );
+    const images = ticket?.images ?? [];
+    setLoadedImages((current) => {
+      const next = Object.fromEntries(
+        images.map((image) => [image, current[image] ?? false]),
+      );
+      return next;
+    });
   }, [ticket?.images]);
   useEffect(() => {
     setLoadFinished(false);

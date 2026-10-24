@@ -145,12 +145,12 @@ node --check middleware/requireNeonAuth.js
 
 ## Release
 
-The current mobile release is `2.0.0`. Release notes are maintained in [app/CHANGELOG.md](app/CHANGELOG.md).
+Release notes are maintained in [app/CHANGELOG.md](app/CHANGELOG.md). The app version is defined in `app/package.json` and flows into Expo config and the Settings screen.
 
 For a new release:
 
 1. Move the entries from `[Unreleased]` into a dated version section.
-2. Update the version in `app/app.config.js`, `app/package.json`, and `app/package-lock.json`.
+2. Bump the version in `app/package.json` (for example `npm version patch` in the `app` directory).
 3. Run the app validation commands.
 4. Build and publish through the configured EAS profile.
 
