@@ -946,7 +946,7 @@ export default function TicketDetailScreen() {
         <View style={styles.previewModal}>
           {previewImageIndex !== null ? (
             <FlatList
-              key={previewImageIndex}
+              // key={previewImageIndex}
               data={ticket.images}
               horizontal
               pagingEnabled
