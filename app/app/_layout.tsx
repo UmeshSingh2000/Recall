@@ -2,8 +2,9 @@ import "@/lib/crypto-polyfill";
 import "react-native-reanimated";
 import { SplashScreen, Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GitCommitListener } from "../components/GitCommitListener";
 import { OtaUpdateManager } from "../components/OtaUpdateManager";
@@ -39,8 +40,39 @@ function AuthenticatedDatabaseExtras() {
   return (
     <>
       <GitCommitListener />
+      <PendingTicketsNotificationListener />
     </>
   );
+}
+
+function PendingTicketsNotificationListener() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const openTickets = (notification: Notifications.Notification) => {
+      if (notification.request.content.data?.type === "pending_tickets_summary") {
+        router.push("/(tabs)/tickets");
+      }
+    };
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) openTickets(response.notification);
+      })
+      .catch((error) => {
+        console.warn("Unable to read the pending tickets notification", error);
+      });
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => openTickets(response.notification),
+    );
+
+    return () => subscription.remove();
+  }, [router]);
+
+  return null;
 }
 
 function RootLayout() {

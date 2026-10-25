@@ -3,7 +3,7 @@ import { pushTokens } from "../models/pushToken.js";
 export async function sendPushNotifications(text, receivedAt) {
   if (pushTokens.size === 0) return;
 
-  const messages = [...pushTokens].map((token) => ({
+  const messages = [...pushTokens.keys()].map((token) => ({
     to: token,
     title: "New clipboard text",
     body: text.length > 180 ? `${text.slice(0, 177)}...` : text,
@@ -46,7 +46,7 @@ export async function sendPushNotifications(text, receivedAt) {
 export async function sendGitCommitPushNotification(gitCommit) {
   if (pushTokens.size === 0) return;
 
-  const messages = [...pushTokens].map((token) => ({
+  const messages = [...pushTokens.keys()].map((token) => ({
     to: token,
     title: `Commit ${gitCommit.ticketKey}`,
     body: gitCommit.commitMessage || "New Git commit",
@@ -85,6 +85,66 @@ export async function sendGitCommitPushNotification(gitCommit) {
 
     if (ticket.status === "error") {
       console.error("Git commit push error", {
+        token: messages[index].to,
+        message: ticket.message,
+        details: ticket.details,
+      });
+    }
+  });
+}
+
+export async function sendPendingTicketsPushNotification(tickets, userId) {
+  if (pushTokens.size === 0 || tickets.length === 0) return;
+
+  const firstTicket = tickets[0];
+  const ticketCount = tickets.length;
+  const summary = firstTicket.short_summary || firstTicket.title;
+  const prefix =
+    ticketCount === 1
+      ? `${firstTicket.ticket_key}: `
+      : `${ticketCount} in-progress tickets. ${firstTicket.ticket_key}: `;
+  const body = `${prefix}${summary}`;
+
+  const messages = [...pushTokens.entries()]
+    .filter(([, tokenUserId]) => tokenUserId === userId)
+    .map(([token]) => ({
+      to: token,
+      title: "Pending ticket reminder",
+      body: body.length > 180 ? `${body.slice(0, 177)}...` : body,
+      sound: "default",
+      data: {
+        type: "pending_tickets_summary",
+        ticketIds: tickets.map((ticket) => ticket.id),
+        ticketKeys: tickets.map((ticket) => ticket.ticket_key),
+        url: "/(tabs)/tickets",
+      },
+    }));
+
+  if (messages.length === 0) return;
+
+  const response = await fetch("https://exp.host/--/api/v2/push/send", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Accept-encoding": "gzip, deflate",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(messages),
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      `Expo Push Service responded with ${response.status}: ${JSON.stringify(result)}`
+    );
+  }
+
+  result.data?.forEach((ticket, index) => {
+    if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
+      pushTokens.delete(messages[index].to);
+    }
+    if (ticket.status === "error") {
+      console.error("Pending tickets push error", {
         token: messages[index].to,
         message: ticket.message,
         details: ticket.details,

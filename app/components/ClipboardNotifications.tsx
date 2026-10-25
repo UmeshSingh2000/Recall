@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { radius, spacing } from "../constants/theme";
+import { BACKEND_URL, getAuthToken } from "../lib/api";
 import { useTheme, useThemedStyles } from "./ThemeProvider";
 
 type ClipboardEvent = {
@@ -23,7 +24,7 @@ type ClipboardEvent = {
   receivedAt: string;
 };
 
-const backendUrl = "https://recall-en47.onrender.com";
+const backendUrl = BACKEND_URL;
 const webSocketUrl = backendUrl.replace(/^https/, "wss");
 const clipboardChannelId = "clipboard-v2";
 
@@ -214,6 +215,7 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${await getAuthToken()}`,
         },
         body: JSON.stringify({ token }),
       });
