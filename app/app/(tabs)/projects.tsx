@@ -3,40 +3,19 @@ import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
-import { EmptyState, Screen } from '../../components/ui';
-import ShimmerBlock from '../../components/ShimmerBlock';
+import { EmptyState, ProjectCardSkeleton, Screen } from '../../components/ui';
 import { fetchProjects } from '../../store/workspaceSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 
 function ProjectListSkeleton() {
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
-    card: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.line,
-      borderRadius: radius.md,
-      padding: spacing.lg,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      marginBottom: 10,
-      gap: 12,
-    },
-    content: { flex: 1, gap: 9 },
   }));
 
   return (
     <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
       {["one", "two", "three", "four"].map((item) => (
-        <View key={item} style={styles.card}>
-          <ShimmerBlock width={40} height={40} borderRadius={12} />
-          <View style={styles.content}>
-            <ShimmerBlock width="58%" height={17} borderRadius={6} />
-            <ShimmerBlock width="88%" height={13} borderRadius={5} />
-            <ShimmerBlock width="45%" height={12} borderRadius={5} />
-          </View>
-          <ShimmerBlock width={12} height={24} borderRadius={5} />
-        </View>
+        <ProjectCardSkeleton key={item} />
       ))}
     </ScrollView>
   );

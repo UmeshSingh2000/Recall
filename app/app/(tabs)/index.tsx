@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { TicketDeck } from "../../components/TicketDeck";
 import { ClipboardNotifications } from "../../components/ClipboardNotifications";
 import ShimmerBlock from "../../components/ShimmerBlock";
+import { TicketCardSkeleton } from "../../components/ui";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { radius, spacing, tabBarInset, workloadColors } from "../../constants/theme";
 import { greeting, relativeTime } from "../../lib/format";
@@ -20,23 +21,16 @@ function HomeSkeleton() {
     content: { padding: spacing.lg, paddingBottom: tabBarInset + spacing.xl },
     greeting: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginBottom: 22 },
     greetingCopy: { gap: 9 },
-    stats: { flexDirection: "row", gap: 10, marginBottom: 22 },
-    workload: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, marginBottom: 24 },
+    workload: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, marginBottom: 22 },
     workloadTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    workloadTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
-    workloadMeta: { color: colors.muted, fontSize: 11 },
     statRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
-    stat: { flex: 1 },
-    statLabel: { color: colors.muted, fontSize: 11 },
-    statValue: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 3 },
+    stat: { flex: 1, gap: 5 },
     progress: { height: 6, flexDirection: "row", gap: 8, marginTop: 14 },
-    progressActive: { flex: 6, backgroundColor: workloadColors.active, borderRadius: 3 },
-    progressPaused: { flex: 2, backgroundColor: workloadColors.paused, borderRadius: 3 },
-    progressDone: { flex: 5, backgroundColor: workloadColors.done, borderRadius: 3 },
-    section: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 18, marginBottom: 11 },
-    sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
-    sectionAction: { color: colors.green, fontSize: 12, fontWeight: "800" },
-    ticket: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.md, padding: spacing.lg, marginBottom: 10, gap: 13 },
+    projectRow: { flexDirection: "row", gap: 12, marginHorizontal: -spacing.lg, paddingHorizontal: spacing.lg, marginBottom: 8 },
+    projectCard: { width: 192, height: 131, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16 },
+    insight: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, marginBottom: 8 },
+    notes: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 14, marginBottom: 8 },
+    recent: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 13 },
   }));
 
   return (
@@ -50,25 +44,62 @@ function HomeSkeleton() {
           </View>
           <ShimmerBlock width={42} height={42} borderRadius={21} />
         </View>
-        <View style={styles.stats}>
-          {["active", "paused", "done"].map((item) => (
-            <View key={item} style={styles.stat}>
-              <ShimmerBlock width="70%" height={11} />
-              <ShimmerBlock width="45%" height={25} borderRadius={7} />
+        <View style={styles.workload}>
+          <View style={styles.workloadTop}>
+            <ShimmerBlock width={132} height={16} borderRadius={6} />
+            <ShimmerBlock width={112} height={12} borderRadius={5} />
+          </View>
+          <View style={styles.statRow}>
+            {["one", "two", "three", "four"].map((item) => (
+              <View key={item} style={styles.stat}>
+                <ShimmerBlock width="65%" height={11} />
+                <ShimmerBlock width="38%" height={22} borderRadius={7} />
+              </View>
+            ))}
+          </View>
+          <ShimmerBlock width="100%" height={6} borderRadius={3} style={styles.progress} />
+        </View>
+        <ShimmerBlock width={188} height={20} borderRadius={7} style={{ marginBottom: 11 }} />
+        <TicketCardSkeleton />
+        <ShimmerBlock width={138} height={20} borderRadius={7} style={{ marginTop: 8, marginBottom: 11 }} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projectRow}>
+          {["one", "two"].map((item) => (
+            <View key={item} style={styles.projectCard}>
+              <ShimmerBlock width={36} height={36} borderRadius={18} />
+              <ShimmerBlock width="72%" height={14} borderRadius={5} style={{ marginTop: 12 }} />
+              <ShimmerBlock width="54%" height={11} borderRadius={5} style={{ marginTop: 6 }} />
+              <ShimmerBlock width="100%" height={4} borderRadius={2} style={{ marginTop: 13 }} />
+            </View>
+          ))}
+        </ScrollView>
+        <ShimmerBlock width={148} height={20} borderRadius={7} style={{ marginTop: 18, marginBottom: 11 }} />
+        <View style={styles.insight}>
+          <ShimmerBlock width="48%" height={10} borderRadius={4} />
+          <ShimmerBlock width="86%" height={15} borderRadius={5} style={{ marginTop: 12 }} />
+          <ShimmerBlock width="100%" height={12} borderRadius={5} style={{ marginTop: 6 }} />
+          <ShimmerBlock width="42%" height={12} borderRadius={5} style={{ marginTop: 12 }} />
+        </View>
+        <View style={styles.notes}>
+          {["one", "two"].map((item) => (
+            <View key={item} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <ShimmerBlock width={32} height={32} borderRadius={10} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <ShimmerBlock width="86%" height={12} borderRadius={5} />
+                <ShimmerBlock width="52%" height={10} borderRadius={4} />
+              </View>
             </View>
           ))}
         </View>
-        <ShimmerBlock width="100%" height={180} borderRadius={radius.md} />
-        <View style={styles.section}>
-          <ShimmerBlock width={145} height={20} borderRadius={7} />
+        <ShimmerBlock width={132} height={20} borderRadius={7} style={{ marginTop: 18, marginBottom: 11 }} />
+        <View style={styles.recent}>
+          {["one", "two", "three"].map((item) => (
+            <View key={item} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <ShimmerBlock width={6} height={6} borderRadius={3} />
+              <ShimmerBlock width="68%" height={12} borderRadius={5} style={{ flex: 1 }} />
+              <ShimmerBlock width={42} height={10} borderRadius={4} />
+            </View>
+          ))}
         </View>
-        {["one", "two", "three"].map((item) => (
-          <View key={item} style={styles.ticket}>
-            <ShimmerBlock width={80} height={12} />
-            <ShimmerBlock width="78%" height={17} borderRadius={6} />
-            <ShimmerBlock width="45%" height={12} />
-          </View>
-        ))}
       </ScrollView>
     </SafeAreaView>
   );

@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ShimmerBlock from '../../components/ShimmerBlock';
 import { useTheme, useThemedStyles } from '../../components/ThemeProvider';
 import { radius, spacing, tabBarInset } from '../../constants/theme';
-import { EmptyState, Screen, SearchInput, TicketCard } from '../../components/ui';
+import { EmptyState, Screen, SearchInput, TicketCard, TicketCardSkeleton } from '../../components/ui';
 import { relativeTime, titleCase } from '../../lib/format';
 import { fetchSearchResults, type SearchResult } from '../../store/workspaceSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
@@ -51,15 +50,6 @@ export default function SearchScreen() {
     logDescription: { color: colors.charcoal, fontSize: 13, lineHeight: 19, marginTop: 4 },
     logNext: { color: colors.muted, fontSize: 12, marginTop: 5 },
     pressed: { opacity: 0.65 },
-    skeletonCard: {
-      backgroundColor: colors.surface,
-      borderColor: colors.line,
-      borderWidth: 1,
-      borderRadius: radius.md,
-      padding: spacing.lg,
-      marginBottom: 10,
-      gap: 11,
-    },
   }));
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -110,12 +100,7 @@ export default function SearchScreen() {
       >
         {cachedResults === undefined && loading ? (
           ["one", "two", "three"].map((item) => (
-            <View key={item} style={styles.skeletonCard}>
-              <ShimmerBlock width={78} height={12} borderRadius={5} />
-              <ShimmerBlock width="80%" height={18} borderRadius={6} />
-              <ShimmerBlock width="52%" height={12} borderRadius={5} />
-              <ShimmerBlock width="36%" height={12} borderRadius={5} />
-            </View>
+            <TicketCardSkeleton key={item} />
           ))
         ) : results.length === 0 ? (
           <EmptyState

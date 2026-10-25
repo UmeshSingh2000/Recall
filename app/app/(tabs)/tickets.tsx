@@ -18,6 +18,7 @@ import {
   Screen,
   SearchInput,
   TicketCard,
+  TicketCardSkeleton,
 } from "../../components/ui";
 import type { Ticket, TicketStatus } from "../../types";
 import { listTickets } from "../../lib/workspace";
@@ -26,30 +27,26 @@ function TicketListSkeleton() {
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
     search: { flexDirection: "row", gap: 8, marginBottom: 16 },
-    card: {
+    filter: {
+      width: 48,
+      height: 48,
+      borderRadius: radius.md,
       backgroundColor: colors.surface,
       borderColor: colors.line,
       borderWidth: 1,
-      borderRadius: radius.md,
-      padding: 16,
-      marginBottom: 10,
-      gap: 11,
     },
+    sort: { width: 125, height: 13, marginBottom: 12 },
   }));
 
   return (
     <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
       <View style={styles.search}>
         <ShimmerBlock width="100%" height={48} borderRadius={radius.md} />
+        <View style={styles.filter} />
       </View>
-      <ShimmerBlock width={125} height={13} borderRadius={5} />
+      <ShimmerBlock width={styles.sort.width} height={styles.sort.height} borderRadius={5} style={styles.sort} />
       {["one", "two", "three", "four"].map((item) => (
-        <View key={item} style={styles.card}>
-          <ShimmerBlock width={75} height={12} borderRadius={5} />
-          <ShimmerBlock width="78%" height={18} borderRadius={6} />
-          <ShimmerBlock width="48%" height={12} borderRadius={5} />
-          <ShimmerBlock width="35%" height={12} borderRadius={5} />
-        </View>
+        <TicketCardSkeleton key={item} showNextAction={false} />
       ))}
     </ScrollView>
   );

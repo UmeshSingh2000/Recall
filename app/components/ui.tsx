@@ -6,6 +6,7 @@ import { radius, spacing, type ThemeColors } from "../constants/theme";
 import { titleCase } from "../lib/format";
 import type { Ticket } from "../types";
 import { useTheme } from "./ThemeProvider";
+import ShimmerBlock from "./ShimmerBlock";
 
 function useUiStyles() {
   const { colors } = useTheme();
@@ -295,6 +296,45 @@ export function TicketCard({
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+export function TicketCardSkeleton({ showNextAction = true }: { showNextAction?: boolean }) {
+  const styles = useUiStyles();
+  return (
+    <View style={styles.ticketCard}>
+      <View style={styles.ticketTop}>
+        <ShimmerBlock width={78} height={12} borderRadius={5} />
+        <ShimmerBlock width={76} height={24} borderRadius={radius.pill} />
+      </View>
+      <ShimmerBlock width="82%" height={18} borderRadius={6} style={{ marginTop: 9 }} />
+      <ShimmerBlock width="48%" height={13} borderRadius={5} style={{ marginTop: 4 }} />
+      <View style={[styles.ticketBottom, { marginTop: 15 }]}>
+        <ShimmerBlock width={62} height={14} borderRadius={5} />
+        <ShimmerBlock width={92} height={12} borderRadius={5} />
+      </View>
+      {showNextAction ? (
+        <View style={[styles.nextRow, { gap: 7 }]}>
+          <ShimmerBlock width={16} height={16} borderRadius={8} />
+          <ShimmerBlock width="72%" height={12} borderRadius={5} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function ProjectCardSkeleton() {
+  const styles = useUiStyles();
+  return (
+    <View style={[styles.ticketCard, { flexDirection: "row", alignItems: "flex-start", gap: 12 }]}>
+      <ShimmerBlock width={40} height={40} borderRadius={12} />
+      <View style={{ flex: 1, gap: 9 }}>
+        <ShimmerBlock width="58%" height={17} borderRadius={6} />
+        <ShimmerBlock width="88%" height={13} borderRadius={5} />
+        <ShimmerBlock width="45%" height={12} borderRadius={5} />
+      </View>
+      <ShimmerBlock width={12} height={24} borderRadius={5} />
+    </View>
   );
 }
 
