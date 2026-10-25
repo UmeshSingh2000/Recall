@@ -26,7 +26,7 @@ import type { Ticket } from "../types";
 import { StatusBadge } from "./ui";
 
 const SWIPE_THRESHOLD = 72;
-const DECK_HEIGHT = 318;
+const DECK_HEIGHT = 260;
 const SWIPE_CONFIG = { duration: 240, easing: Easing.out(Easing.cubic) };
 const SPRING_CONFIG = { damping: 20, stiffness: 280, mass: 0.7 };
 
@@ -34,9 +34,10 @@ type TicketDeckProps = {
   tickets: Ticket[];
   deckIndex: number;
   onDeckIndexChange: Dispatch<SetStateAction<number>>;
+  accentColor?: string;
 };
 
-function useTicketDeckStyles() {
+function useTicketDeckStyles(accentColor?: string) {
   return useThemedStyles((colors) => ({
     deckWrapper: {
       height: DECK_HEIGHT,
@@ -54,59 +55,59 @@ function useTicketDeckStyles() {
       borderRadius: radius.lg,
       overflow: "hidden",
     },
-    accent: { height: 4, backgroundColor: colors.green },
-    main: { padding: 18 },
+    accent: { height: 4, backgroundColor: accentColor ?? colors.green },
+    main: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 22 },
     top: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
     },
     key: {
-      color: colors.heroKicker,
+      color: accentColor ?? colors.heroKicker,
       fontWeight: "800",
       fontSize: 12,
       letterSpacing: 0.6,
     },
     title: {
       color: colors.heroText,
-      fontSize: 20,
-      lineHeight: 24,
-      height: 48,
+      fontSize: 18,
+      lineHeight: 22,
+      height: 44,
       fontWeight: "800",
-      marginTop: 11,
+      marginTop: 8,
     },
-    project: { color: colors.heroSubtext, fontSize: 13, height: 18, marginTop: 4 },
+    project: { color: colors.heroSubtext, fontSize: 12, height: 16, marginTop: 2 },
     lastSession: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      height: 18,
-      marginTop: 17,
+      height: 16,
+      marginTop: 9,
     },
     lastSessionText: { color: colors.heroSubtext, fontSize: 12 },
     nextAction: {
       borderTopColor: colors.heroBorder,
       borderTopWidth: 1,
-      marginTop: 17,
-      paddingTop: 13,
-      height: 69,
+      marginTop: 10,
+      paddingTop: 10,
+      height: 47,
     },
     nextLabel: {
-      color: colors.heroKicker,
+      color: accentColor ?? colors.heroKicker,
       fontSize: 10,
       fontWeight: "800",
       letterSpacing: 1,
     },
-    nextValue: { color: colors.heroText, fontSize: 13, lineHeight: 18, height: 36, fontWeight: "600", marginTop: 5 },
+    nextValue: { color: colors.heroText, fontSize: 12, lineHeight: 17, height: 17, fontWeight: "600", marginTop: 4 },
     continue: {
-      backgroundColor: colors.green,
+      backgroundColor: accentColor ?? colors.green,
       borderRadius: radius.md,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",
       gap: 8,
-      paddingVertical: 12,
-      marginTop: 18,
+      paddingVertical: 10,
+      marginTop: 10,
     },
     continueText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   }));
@@ -115,12 +116,14 @@ function useTicketDeckStyles() {
 function DeckCard({
   ticket,
   onPress,
+  accentColor,
 }: {
   ticket: Ticket;
   onPress: () => void;
+  accentColor?: string;
 }) {
   const { colors } = useTheme();
-  const styles = useTicketDeckStyles();
+  const styles = useTicketDeckStyles(accentColor);
   return (
     <Pressable onPress={onPress}>
       <View style={styles.accent} />
@@ -156,8 +159,9 @@ export function TicketDeck({
   tickets,
   deckIndex,
   onDeckIndexChange,
+  accentColor,
 }: TicketDeckProps) {
-  const styles = useTicketDeckStyles();
+  const styles = useTicketDeckStyles(accentColor);
   const router = useRouter();
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -256,10 +260,10 @@ export function TicketDeck({
           <DeckCard
             ticket={ticket}
             onPress={() => router.push(`/ticket/${ticket.id}`)}
+            accentColor={accentColor}
           />
         </Animated.View>
       ) : null}
     </View>
   );
 }
-
