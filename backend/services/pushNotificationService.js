@@ -96,26 +96,22 @@ export async function sendGitCommitPushNotification(gitCommit) {
 export async function sendPendingTicketsPushNotification(tickets, userId) {
   if (pushTokens.size === 0 || tickets.length === 0) return;
 
-  const firstTicket = tickets[0];
   const ticketCount = tickets.length;
-  const summary = firstTicket.short_summary || firstTicket.title;
-  const prefix =
+  const title = "Pending tickets";
+  const body =
     ticketCount === 1
-      ? `${firstTicket.ticket_key}: `
-      : `${ticketCount} in-progress tickets. ${firstTicket.ticket_key}: `;
-  const body = `${prefix}${summary}`;
+      ? "You have 1 pending ticket. Tap to see it."
+      : `You have ${ticketCount} pending tickets. Tap to see them.`;
 
   const messages = [...pushTokens.entries()]
     .filter(([, tokenUserId]) => tokenUserId === userId)
     .map(([token]) => ({
       to: token,
-      title: "Pending ticket reminder",
-      body: body.length > 180 ? `${body.slice(0, 177)}...` : body,
+      title,
+      body,
       sound: "default",
       data: {
         type: "pending_tickets_summary",
-        ticketIds: tickets.map((ticket) => ticket.id),
-        ticketKeys: tickets.map((ticket) => ticket.ticket_key),
         url: "/(tabs)/tickets",
       },
     }));
