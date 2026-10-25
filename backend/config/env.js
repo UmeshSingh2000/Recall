@@ -8,3 +8,4 @@ export const groq = new Groq({
 });
 export const port = process.env.PORT || 3000;
 export const neonAuthUrl = process.env.NEON_AUTH_URL;
+export const cronSecret = process.env.CRON_SECRET;
