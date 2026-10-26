@@ -12,7 +12,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import ShimmerBlock from "../../components/ShimmerBlock";
-import { radius, tabBarInset } from "../../constants/theme";
+import { radius, spacing, tabBarInset } from "../../constants/theme";
 import {
   EmptyState,
   Screen,
@@ -26,10 +26,11 @@ import { listTickets } from "../../lib/workspace";
 function TicketListSkeleton() {
   const styles = useThemedStyles((colors) => ({
     list: { paddingBottom: tabBarInset },
-    search: { flexDirection: "row", gap: 8, marginBottom: 16 },
-    filter: {
-      width: 48,
-      height: 48,
+    search: { marginBottom: 12 },
+    filterRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+    filterChip: {
+      width: 88,
+      height: 34,
       borderRadius: radius.md,
       backgroundColor: colors.surface,
       borderColor: colors.line,
@@ -40,10 +41,12 @@ function TicketListSkeleton() {
 
   return (
     <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-      <View style={styles.search}>
-        <ShimmerBlock width="100%" height={48} borderRadius={radius.md} />
-        <View style={styles.filter} />
-      </View>
+      <ShimmerBlock width="100%" height={48} borderRadius={radius.md} style={styles.search} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {["one", "two", "three", "four"].map((item) => (
+          <View key={item} style={styles.filterChip} />
+        ))}
+      </ScrollView>
       <ShimmerBlock width={styles.sort.width} height={styles.sort.height} borderRadius={5} style={styles.sort} />
       {["one", "two", "three", "four"].map((item) => (
         <TicketCardSkeleton key={item} showNextAction={false} />
@@ -76,53 +79,20 @@ export default function TicketsScreen() {
       alignItems: "center",
       justifyContent: "center",
     },
-    searchRow: {
-      position: "relative",
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 8,
-      zIndex: 10,
-    },
-    searchField: { flex: 1, minWidth: 0 },
-    filterButton: {
-      width: 48,
-      height: 48,
-      marginBottom: 16,
-      borderRadius: radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surface,
-      borderColor: colors.line,
-      borderWidth: 1,
-    },
-    filterButtonActive: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
-    filterMenu: {
-      position: "absolute",
-      top: 54,
-      right: 0,
-      width: 210,
-      padding: 6,
+    search: { marginBottom: 12 },
+    filterScroll: { marginHorizontal: -spacing.lg, marginBottom: 16 },
+    filterRow: { gap: 8, paddingHorizontal: spacing.lg },
+    filterChip: {
       backgroundColor: colors.surface,
       borderColor: colors.line,
       borderWidth: 1,
       borderRadius: radius.md,
-      shadowColor: colors.ink,
-      shadowOpacity: 0.14,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 5 },
-      elevation: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
     },
-    menuItem: {
-      minHeight: 40,
-      paddingHorizontal: 12,
-      borderRadius: radius.sm,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    menuItemActive: { backgroundColor: colors.charcoal },
-    menuText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
-    menuTextActive: { color: "#fff" },
+    filterChipSelected: { backgroundColor: colors.charcoal, borderColor: colors.charcoal },
+    filterChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+    filterChipTextSelected: { color: "#fff" },
     sort: {
       flexDirection: "row",
       alignItems: "center",
@@ -143,8 +113,6 @@ export default function TicketsScreen() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TicketStatus | "all">("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-
   const loadTickets = useCallback(async () => {
     setLoading(true);
     try {
@@ -240,34 +208,32 @@ export default function TicketsScreen() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <>
-            <View style={styles.searchRow}>
-              <SearchInput value={search} onChangeText={setSearch} placeholder="Search tickets..." style={styles.searchField} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Filter tickets"
-                onPress={() => setFilterMenuOpen((open) => !open)}
-                style={[styles.filterButton, filter !== "all" && styles.filterButtonActive]}
-              >
-                <Ionicons name="options-outline" size={20} color={filter !== "all" ? "#fff" : colors.ink} />
-              </Pressable>
-              {filterMenuOpen ? (
-                <View style={styles.filterMenu}>
-                  {filters.map((item) => (
-                    <Pressable
-                      key={item.value}
-                      onPress={() => {
-                        setFilter(item.value);
-                        setFilterMenuOpen(false);
-                      }}
-                      style={[styles.menuItem, filter === item.value && styles.menuItemActive]}
-                    >
-                      <Text style={[styles.menuText, filter === item.value && styles.menuTextActive]}>{item.label}</Text>
-                      {filter === item.value ? <Ionicons name="checkmark" size={17} color="#fff" /> : null}
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
+            <SearchInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search tickets..."
+              style={styles.search}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterRow}
+            >
+              {filters.map((item) => (
+                <Pressable
+                  key={item.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: filter === item.value }}
+                  onPress={() => setFilter(item.value)}
+                  style={[styles.filterChip, filter === item.value && styles.filterChipSelected]}
+                >
+                  <Text style={[styles.filterChipText, filter === item.value && styles.filterChipTextSelected]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
             <View style={styles.sort}>
               <Text style={styles.sortLabel}>Recently updated</Text>
               <Text style={styles.sortIcon}>↕</Text>
