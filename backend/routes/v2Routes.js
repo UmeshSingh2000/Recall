@@ -23,6 +23,10 @@ import {
   addTicketImage,
   deleteTicketImage,
 } from "../controllers/ticketController.js";
+import {
+  listNotifications,
+  markNotificationRead,
+} from "../controllers/notificationController.js";
 import { requireNeonAuth } from "../middleware/requireNeonAuth.js";
 
 const router = Router();
@@ -64,6 +68,9 @@ router.post("/api/tickets/:id/pause", pauseTicket);
 
 router.get("/api/logs/:id", getWorkLog);
 router.delete("/api/logs/:id", deleteWorkLog);
+
+router.get("/api/notifications", listNotifications);
+router.patch("/api/notifications/:id/read", markNotificationRead);
 
 router.get("/api/search", searchWorkspace);
 router.post("/api/git-commits", applyGitCommit);

@@ -1,6 +1,10 @@
 import prisma from "../config/prisma.js";
 import { generateWithGroq } from "../services/groqService.js";
-import { sendPendingTicketsPushNotification } from "../services/pushNotificationService.js";
+import {
+    NOTIFICATION_BODY_PENDING_TICKETS,
+    NOTIFICATION_TITLE_PENDING_TICKETS,
+    sendPendingTicketsPushNotification,
+} from "../services/pushNotificationService.js";
 import { ticketsOwnedByUserWhere } from "../services/workspaceAuth.js";
 
 const PENDING_TICKET_LIMIT = 25;
@@ -100,10 +104,62 @@ async function processUserPendingTickets(userId) {
 
     let notified = false;
 
+    let notification;
     try {
-        await sendPendingTicketsPushNotification(ticketsWithSummaries, userId);
-        notified = true;
+        notification = await prisma.notification.create({
+            data: {
+                user_id: userId,
+                type: "pending_tickets",
+                title: NOTIFICATION_TITLE_PENDING_TICKETS,
+                body: NOTIFICATION_BODY_PENDING_TICKETS.replace(
+                    "{count}",
+                    ticketsWithSummaries.length,
+                ),
+                data: ticketsWithSummaries,
+            },
+        });
     } catch (error) {
+        console.error(
+            `Failed to save pending ticket notification for user ${userId}:`,
+            error.message,
+        );
+        return {
+            userId,
+            ticketCount: ticketsWithSummaries.length,
+            tickets: ticketsWithSummaries,
+            notified: false,
+        };
+    }
+
+    try {
+        const pushSent = await sendPendingTicketsPushNotification(
+            ticketsWithSummaries,
+            userId,
+        );
+        if (pushSent) {
+            await prisma.notification.update({
+                where: { id: notification.id },
+                data: { push_status: "sent", sent_at: new Date() },
+            });
+            notified = true;
+        } else {
+            await prisma.notification.update({
+                where: { id: notification.id },
+                data: { push_status: "skipped" },
+            });
+        }
+    } catch (error) {
+        await prisma.notification
+            .update({
+                where: { id: notification.id },
+                data: { push_status: "failed" },
+            })
+            .catch((updateError) => {
+                console.error(
+                    `Failed to mark notification ${notification.id} as failed:`,
+                    updateError.message,
+                );
+            });
         console.error(
             `Failed to send pending ticket push for user ${userId}:`,
             error.message,

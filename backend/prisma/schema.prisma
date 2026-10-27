@@ -123,3 +123,21 @@ model Ticket {
   @@index([project_id])
   @@map("tickets")
 }
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  user_id     String
+  type        String
+  title       String
+  body        String
+  data        Json      @default("{}")
+  is_read     Boolean   @default(false)
+  read_at     DateTime?
+  push_status String    @default("pending")
+  sent_at     DateTime?
+  created_at  DateTime  @default(now())
+
+  @@index([user_id, created_at])
+  @@index([user_id, is_read, created_at])
+  @@map("notifications")
+}

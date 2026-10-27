@@ -1,5 +1,7 @@
 import { pushTokens } from "../models/pushToken.js";
 
+export const NOTIFICATION_TITLE_PENDING_TICKETS = "Pending tickets";
+export const NOTIFICATION_BODY_PENDING_TICKETS = "You have {count} pending tickets. Tap to see them.";
 export async function sendPushNotifications(text, receivedAt) {
   if (pushTokens.size === 0) return;
 
@@ -94,14 +96,11 @@ export async function sendGitCommitPushNotification(gitCommit) {
 }
 
 export async function sendPendingTicketsPushNotification(tickets, userId) {
-  if (pushTokens.size === 0 || tickets.length === 0) return;
+  if (pushTokens.size === 0 || tickets.length === 0) return false;
 
   const ticketCount = tickets.length;
-  const title = "Pending tickets";
-  const body =
-    ticketCount === 1
-      ? "You have 1 pending ticket. Tap to see it."
-      : `You have ${ticketCount} pending tickets. Tap to see them.`;
+  const title = NOTIFICATION_TITLE_PENDING_TICKETS;
+  const body = NOTIFICATION_BODY_PENDING_TICKETS.replace("{count}", ticketCount);
 
   const messages = [...pushTokens.entries()]
     .filter(([, tokenUserId]) => tokenUserId === userId)
@@ -116,7 +115,7 @@ export async function sendPendingTicketsPushNotification(tickets, userId) {
       },
     }));
 
-  if (messages.length === 0) return;
+  if (messages.length === 0) return false;
 
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
@@ -147,4 +146,6 @@ export async function sendPendingTicketsPushNotification(tickets, userId) {
       });
     }
   });
+
+  return true;
 }

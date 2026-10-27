@@ -41,7 +41,13 @@ if (Platform.OS !== "web") {
   });
 }
 
-export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: boolean }) {
+export function ClipboardNotifications({
+  fullScreen = false,
+  embedded = false,
+}: {
+  fullScreen?: boolean;
+  embedded?: boolean;
+}) {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles((colors) => ({
@@ -101,6 +107,11 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
       paddingBottom: spacing.lg,
       backgroundColor: colors.canvas,
     },
+    embeddedPanel: {
+      width: "100%",
+      padding: spacing.lg,
+      backgroundColor: colors.surface,
+    },
     panelHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -109,6 +120,8 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
     },
     panelTitle: { color: colors.heroText, fontSize: 16, fontWeight: "700" },
     panelSubtitle: { color: colors.heroSubtext, fontSize: 11, marginTop: 4 },
+    embeddedTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+    embeddedSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
     closeButton: {
       width: 30,
       height: 30,
@@ -137,6 +150,26 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
       color: colors.heroText,
       fontSize: 13,
       lineHeight: 20,
+    },
+    embeddedNotification: {
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      backgroundColor: colors.canvas,
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: radius.sm,
+    },
+    embeddedNotificationText: {
+      color: colors.ink,
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    embeddedEmpty: {
+      color: colors.muted,
+      fontSize: 13,
+      lineHeight: 19,
+      paddingVertical: spacing.md,
+      textAlign: "center",
     },
     copyButton: {
       width: 32,
@@ -410,10 +443,18 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
       {isOpen ? (
         <View
           style={[
-            fullScreen ? styles.screenPanel : styles.panel,
-            !fullScreen && { width: Math.min(300, Math.max(0, screenWidth - spacing.xxl)) },
+            embedded
+              ? styles.embeddedPanel
+              : fullScreen
+                ? styles.screenPanel
+                : styles.panel,
+            !fullScreen &&
+              !embedded && {
+                width: Math.min(300, Math.max(0, screenWidth - spacing.xxl)),
+              },
           ]}
         >
+          {!embedded ? (
           <View style={styles.panelHeader}>
             <View>
               <Text style={styles.panelTitle}>
@@ -441,9 +482,10 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
               />
             </Pressable> : null}
           </View>
+          ) : null}
 
           {notifications.length === 0 ? (
-            <Text style={styles.empty}>
+            <Text style={embedded ? styles.embeddedEmpty : styles.empty}>
               Copied text will appear here.
             </Text>
           ) : (
@@ -456,11 +498,19 @@ export function ClipboardNotifications({ fullScreen = false }: { fullScreen?: bo
             >
               {notifications.map((notification) => (
                 <View
-                  style={styles.notification}
+                  style={
+                    embedded
+                      ? styles.embeddedNotification
+                      : styles.notification
+                  }
                   key={notification.receivedAt}
                 >
                   <Text
-                    style={styles.notificationText}
+                    style={
+                      embedded
+                        ? styles.embeddedNotificationText
+                        : styles.notificationText
+                    }
                     numberOfLines={4}
                   >
                     {notification.text}
