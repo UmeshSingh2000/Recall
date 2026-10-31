@@ -23,7 +23,10 @@ export async function listNotifications(req, res) {
 
     try {
         const notifications = await prisma.notification.findMany({
-            where: { user_id: userId },
+            where: {
+                user_id: userId,
+                is_read: false
+            },
             orderBy: { created_at: "desc" },
             take: 50,
         });
