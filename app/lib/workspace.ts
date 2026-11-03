@@ -66,12 +66,40 @@ export type TicketDetail = {
   files: TicketFile[];
   notes: TicketNote[];
   sessions: WorkSession[];
+  diffs: TicketDiffSummary[];
   project: Pick<Project, "name" | "description" | "repository_url"> | null;
+};
+
+export type TicketDiffSummary = {
+  id: number;
+  ticket_id: number;
+  file_name: string;
+  file_size: number;
+  commit_sha: string | null;
+  description: string | null;
+  created_at: string;
+};
+
+export type TicketDiffDetail = TicketDiffSummary & {
+  url: string;
+  files: Array<{
+    id: number;
+    file_path: string;
+    file_size: number;
+    url: string;
+  }>;
 };
 
 export async function getTicket(id: number) {
   const response = await api.get<TicketDetail>(`/api/tickets/${id}`);
   return response.data;
+}
+
+export async function getTicketDiff(ticketId: number, diffId: number) {
+  const response = await api.get<{ diff: TicketDiffDetail }>(
+    `/api/tickets/${ticketId}/diffs/${diffId}`,
+  );
+  return response.data.diff;
 }
 
 export async function updateTicket(id: number, input: Partial<Ticket> & { completed_at?: string | null }) {

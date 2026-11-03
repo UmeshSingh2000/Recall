@@ -119,25 +119,60 @@ model Ticket {
   work_sessions       WorkSession[]
   summary             String?
   images              String[]       @default([])
+  ticket_diffs        TicketDiff[]
 
   @@index([project_id])
   @@map("tickets")
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  user_id     String
-  type        String
-  title       String
-  body        String
-  data        Json      @default("{}")
-  is_read     Boolean   @default(false)
-  read_at     DateTime?
-  push_status String    @default("pending")
-  sent_at     DateTime?
-  created_at  DateTime  @default(now())
+  id           Int       @id @default(autoincrement())
+  user_id      String
+  type         String
+  title        String
+  body         String
+  data         Json      @default("{}")
+  is_read      Boolean   @default(false)
+  read_at      DateTime?
+  push_status  String    @default("pending")
+  sent_at      DateTime?
+  created_at   DateTime  @default(now())
 
   @@index([user_id, created_at])
   @@index([user_id, is_read, created_at])
   @@map("notifications")
+}
+
+model TicketDiff {
+  id          Int      @id @default(autoincrement())
+  ticket_id   Int
+
+  object_key  String   @unique
+  file_name   String
+  file_size   Int
+
+  commit_sha  String?
+  description String?
+
+  created_at  DateTime @default(now())
+  files       TicketDiffFile[]
+
+  ticket Ticket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id])
+  @@map("ticket_diffs")
+}
+
+model TicketDiffFile {
+  id            Int      @id @default(autoincrement())
+  ticket_diff_id Int
+  object_key    String   @unique
+  file_path     String
+  file_size     Int
+  created_at    DateTime @default(now())
+
+  ticket_diff TicketDiff @relation(fields: [ticket_diff_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_diff_id])
+  @@map("ticket_diff_files")
 }

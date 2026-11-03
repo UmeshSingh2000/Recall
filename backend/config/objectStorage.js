@@ -37,6 +37,72 @@ export async function uploadTicketImage(file, ticketId) {
   );
 }
 
+export async function uploadTicketDiff(file, ticketId) {
+  const filename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const key = `tickets/${ticketId}/diffs/${randomUUID()}-${filename}`;
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: "text/plain; charset=utf-8",
+    }),
+  );
+
+  const url = await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+    { expiresIn: 3600 },
+  );
+
+  return { key, url };
+}
+
+export async function uploadTicketDiffFile(file, ticketId) {
+  const filename = file.originalname.replace(/[^a-zA-Z0-9._/-]/g, "_");
+  const key = `tickets/${ticketId}/files/${randomUUID()}-${filename}`;
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype || "application/octet-stream",
+    }),
+  );
+
+  const url = await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+    { expiresIn: 3600 },
+  );
+
+  return { key, url };
+}
+
+export async function getTicketObjectUrl(objectKey, ticketId) {
+  if (!objectKey.startsWith(`tickets/${ticketId}/`)) {
+    throw new Error("Invalid ticket object location");
+  }
+
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+    { expiresIn: 3600 },
+  );
+}
+
+export async function deleteTicketObject(objectKey, ticketId) {
+  if (!objectKey.startsWith(`tickets/${ticketId}/`)) {
+    throw new Error("Invalid ticket object location");
+  }
+
+  await s3.send(
+    new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }),
+  );
+}
+
 export async function deleteTicketImageObject(imageUrl, ticketId) {
   const pathParts = decodeURIComponent(new URL(imageUrl).pathname)
     .split("/")
@@ -48,5 +114,5 @@ export async function deleteTicketImageObject(imageUrl, ticketId) {
     throw new Error("Invalid ticket image location");
   }
 
-  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  await deleteTicketObject(key, ticketId);
 }

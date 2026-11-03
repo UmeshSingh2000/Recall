@@ -6,8 +6,22 @@ export const ticketIdParamSchema = z.object({
   id: z.coerce.number().int().positive("Invalid ticket ID"),
 });
 
+export const ticketKeyParamSchema = z.object({
+  ticketKey: z.string().trim().min(1, "Invalid ticket key"),
+});
+
+export const ticketDiffParamsSchema = z.object({
+  id: z.coerce.number().int().positive("Invalid ticket ID"),
+  diffId: z.coerce.number().int().positive("Invalid diff ID"),
+});
+
 export const deleteTicketImageBodySchema = z.object({
   image: z.string().url("Invalid image URL"),
+});
+
+export const storeTicketDiffBodySchema = z.object({
+  commitSha: z.string().trim().max(200).optional().default(""),
+  description: z.string().trim().max(2000).optional().default(""),
 });
 
 export const createTicketBodySchema = z.object({

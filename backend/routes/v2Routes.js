@@ -22,12 +22,15 @@ import {
   updateTicket,
   addTicketImage,
   deleteTicketImage,
+  storeTicketDiff,
+  getTicketDiff,
 } from "../controllers/ticketController.js";
 import {
   listNotifications,
   markNotificationRead,
 } from "../controllers/notificationController.js";
 import { requireNeonAuth } from "../middleware/requireNeonAuth.js";
+import { requireLinuxSecret } from "../middleware/requireLinuxSecret.js";
 import { deleteMarkedNotifications } from "../controllers/cronController.js";
 import { requireCronSecret } from "../middleware/requireCronSecret.js";
 
@@ -50,7 +53,36 @@ const uploadSingleTicketImage = (req, res, next) => {
     return next();
   });
 };
+const uploadTicketDiff = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 101 },
+});
+const uploadSingleTicketDiff = (req, res, next) => {
+  uploadTicketDiff.fields([
+    { name: "diff", maxCount: 1 },
+    { name: "files", maxCount: 100 },
+  ])(req, res, (error) => {
+    if (error?.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ error: "Diff file must be 10 MB or smaller." });
+    }
+    if (error) {
+      return res.status(400).json({ error: "A valid diff file is required." });
+    }
+    return next();
+  });
+};
 router.delete('/api/notifications/delete-marked',requireCronSecret, deleteMarkedNotifications);
+router.post(
+  "/api/tickets/:ticketKey/diffs",
+  requireLinuxSecret,
+  uploadSingleTicketDiff,
+  storeTicketDiff,
+);
+router.get(
+  "/api/tickets/:id/diffs/:diffId",
+  requireNeonAuth,
+  getTicketDiff,
+);
 
 router.use(requireNeonAuth);
 

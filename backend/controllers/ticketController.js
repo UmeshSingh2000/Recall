@@ -1,5 +1,12 @@
 import prisma from "../config/prisma.js";
-import { deleteTicketImageObject, uploadTicketImage } from "../config/objectStorage.js";
+import {
+  deleteTicketImageObject,
+  deleteTicketObject,
+  getTicketObjectUrl,
+  uploadTicketDiffFile,
+  uploadTicketDiff,
+  uploadTicketImage,
+} from "../config/objectStorage.js";
 import { parseRequest } from "../validators/parseRequest.js";
 import {
   createTicketBodySchema,
@@ -7,6 +14,9 @@ import {
   deleteTicketImageBodySchema,
   gitCommitBodySchema,
   pauseTicketBodySchema,
+  storeTicketDiffBodySchema,
+  ticketDiffParamsSchema,
+  ticketKeyParamSchema,
   ticketIdParamSchema,
   updateTicketBodySchema,
 } from "../validators/ticketSchemas.js";
@@ -201,6 +211,18 @@ export async function getTicket(req, res) {
           orderBy: { created_at: "desc" },
           select: { id: true, ticket_id: true, file_path: true, created_at: true },
         },
+        ticket_diffs: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            ticket_id: true,
+            file_name: true,
+            file_size: true,
+            commit_sha: true,
+            description: true,
+            created_at: true,
+          },
+        },
         ticket_notes: {
           orderBy: { updated_at: "desc" },
           select: {
@@ -239,6 +261,7 @@ export async function getTicket(req, res) {
       progress: ticket.progress_items.map(serializeProgress),
       logs: ticket.work_logs.map(serializeWorkLog),
       files: ticket.ticket_files.map(serializeFile),
+      diffs: ticket.ticket_diffs,
       notes: ticket.ticket_notes.map(serializeNote),
       sessions: ticket.work_sessions.map(serializeSession),
       project: {
@@ -322,7 +345,12 @@ export async function deleteTicket(req, res) {
     const params = parseRequest(res, ticketIdParamSchema, req.params);
     if (!params) return;
 
-    const ticket = await findOwnedTicket(userId, params.id);
+    const ticket = await prisma.ticket.findFirst({
+      where: {
+        ticket_key: { equals: params.ticketKey, mode: "insensitive" },
+        ...ticketsOwnedByUserWhere(userId),
+      },
+    });
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found" });
     }
@@ -740,5 +768,194 @@ export async function deleteTicketImage(req, res) {
   } catch (error) {
     console.error("Delete ticket image failed:", error);
     return res.status(500).json({ error: "Could not delete image" });
+  }
+}
+
+export async function storeTicketDiff(req, res) {
+  try {
+    const params = parseRequest(res, ticketKeyParamSchema, req.params);
+    if (!params) return;
+
+    const body = parseRequest(
+      res,
+      storeTicketDiffBodySchema,
+      req.body ?? {},
+    );
+    if (!body) return;
+
+    const diffFile = req.files?.diff?.[0];
+    const fullFiles = req.files?.files ?? [];
+    if (!diffFile) {
+      return res.status(400).json({ error: "Diff file is required." });
+    }
+
+    const content = diffFile.buffer.toString("utf8");
+    if (content.includes("\u0000")) {
+      return res.status(400).json({ error: "Diff file must be a text file." });
+    }
+
+    const ticket = await prisma.ticket.findFirst({
+      where: {
+        ticket_key: { equals: params.ticketKey, mode: "insensitive" },
+      },
+      include: { project: { select: { user_id: true } } },
+    });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    let uploadedObjects = [];
+    let filePaths;
+    try {
+      filePaths = JSON.parse(req.body.filePaths || "[]");
+    } catch {
+      return res.status(400).json({ error: "filePaths must be valid JSON." });
+    }
+    if (
+      !Array.isArray(filePaths) ||
+      filePaths.length !== fullFiles.length ||
+      filePaths.some((filePath) => typeof filePath !== "string" || !filePath.trim())
+    ) {
+      return res.status(400).json({
+        error: "filePaths must contain one path for each uploaded file.",
+      });
+    }
+
+    try {
+      const { key, url } = await uploadTicketDiff(diffFile, ticket.id);
+      uploadedObjects.push(key);
+      const uploadedFiles = [];
+      for (let index = 0; index < fullFiles.length; index += 1) {
+        const uploaded = await uploadTicketDiffFile(fullFiles[index], ticket.id);
+        uploadedObjects.push(uploaded.key);
+        uploadedFiles.push({
+          ...uploaded,
+          filePath: filePaths[index],
+          fileSize: fullFiles[index].size,
+        });
+      }
+
+      const diff = await prisma.$transaction(async (tx) => {
+        const createdDiff = await tx.ticketDiff.create({
+          data: {
+            ticket_id: ticket.id,
+            object_key: key,
+            file_name: diffFile.originalname,
+            file_size: diffFile.size,
+            commit_sha: body.commitSha || null,
+            description: body.description || null,
+          },
+        });
+
+        if (uploadedFiles.length > 0) {
+          await tx.ticketDiffFile.createMany({
+            data: uploadedFiles.map((file) => ({
+              ticket_diff_id: createdDiff.id,
+              object_key: file.key,
+              file_path: file.filePath,
+              file_size: file.fileSize,
+            })),
+          });
+        }
+
+        return createdDiff;
+      });
+
+      await invalidateUserWorkspaceCache(
+        ticket.project.user_id,
+        ticket.project_id,
+      );
+      return res.status(201).json({
+        diff: {
+          id: diff.id,
+          ticket_id: diff.ticket_id,
+          file_name: diff.file_name,
+          file_size: diff.file_size,
+          commit_sha: diff.commit_sha,
+          description: diff.description,
+          created_at: diff.created_at,
+          url,
+          files: uploadedFiles.map((file, index) => ({
+            file_path: file.filePath,
+            file_size: file.fileSize,
+            url: file.url,
+          })),
+        },
+      });
+    } catch (error) {
+      await Promise.all(
+        uploadedObjects.map((objectKey) =>
+          deleteTicketObject(objectKey, ticket.id).catch((cleanupError) => {
+            console.error("Failed to clean up ticket object:", cleanupError);
+          }),
+        ),
+      );
+      throw error;
+    }
+  } catch (error) {
+    console.error("Store ticket diff failed:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function getTicketDiff(req, res) {
+  try {
+    const params = parseRequest(res, ticketDiffParamsSchema, req.params);
+    if (!params) return;
+
+    const userId = getAuthUserId(req, res);
+    if (!userId) return;
+
+    const diff = await prisma.ticketDiff.findFirst({
+      where: {
+        id: params.diffId,
+        ticket_id: params.id,
+        ticket: { project: { user_id: userId } },
+      },
+      include: {
+        files: {
+          orderBy: { file_path: "asc" },
+          select: {
+            id: true,
+            file_path: true,
+            file_size: true,
+            object_key: true,
+          },
+        },
+      },
+    });
+
+    if (!diff) {
+      return res.status(404).json({ error: "Ticket diff not found." });
+    }
+
+    const [diffUrl, files] = await Promise.all([
+      getTicketObjectUrl(diff.object_key, diff.ticket_id),
+      Promise.all(
+        diff.files.map(async (file) => ({
+          id: file.id,
+          file_path: file.file_path,
+          file_size: file.file_size,
+          url: await getTicketObjectUrl(file.object_key, diff.ticket_id),
+        })),
+      ),
+    ]);
+
+    return res.status(200).json({
+      diff: {
+        id: diff.id,
+        ticket_id: diff.ticket_id,
+        file_name: diff.file_name,
+        file_size: diff.file_size,
+        commit_sha: diff.commit_sha,
+        description: diff.description,
+        created_at: diff.created_at,
+        url: diffUrl,
+        files,
+      },
+    });
+  } catch (error) {
+    console.error("Get ticket diff failed:", error);
+    return res.status(500).json({ error: "Could not load ticket diff." });
   }
 }

@@ -26,7 +26,13 @@ import { useTheme, useThemedStyles } from "../../components/ThemeProvider";
 import { ConfirmDialog, PriorityBadge, StatusBadge } from "../../components/ui";
 import { radius, spacing } from "../../constants/theme";
 import { generateTicketSummary } from "../../lib/api";
-import { addTicketImage, deleteTicketImage, type TicketDetail } from "../../lib/workspace";
+import {
+  addTicketImage,
+  deleteTicketImage,
+  getTicketDiff,
+  type TicketDetail,
+  type TicketDiffDetail,
+} from "../../lib/workspace";
 import { subscribeToGitCommitLogs } from "../../lib/gitCommitEvents";
 import { relativeTime, titleCase } from "../../lib/format";
 import {
@@ -355,6 +361,46 @@ function useTicketDetailStyles() {
     logMain: { flex: 1 },
     logDate: { color: colors.muted, fontSize: 11, fontWeight: "800" },
     logText: { color: colors.charcoal, lineHeight: 20, marginTop: 5 },
+    diffCard: {
+      backgroundColor: colors.surface,
+      borderColor: colors.line,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      padding: 14,
+      marginBottom: 10,
+    },
+    diffTitle: { color: colors.ink, fontWeight: "800" },
+    diffMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
+    diffButton: {
+      borderWidth: 1,
+      borderColor: colors.green,
+      borderRadius: radius.md,
+      padding: 11,
+      alignItems: "center",
+      marginTop: 10,
+    },
+    diffButtonText: { color: colors.green, fontWeight: "800" },
+    diffFile: { color: colors.charcoal, fontSize: 12, marginTop: 8 },
+    codeModal: { flex: 1, backgroundColor: colors.canvas },
+    codeHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 14,
+      borderBottomColor: colors.line,
+      borderBottomWidth: 1,
+    },
+    codeTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", flex: 1 },
+    codeClose: { padding: 4, marginLeft: 12 },
+    codeScroll: { flex: 1, backgroundColor: colors.charcoal },
+    codeContent: {
+      color: "#E6EDF3",
+      fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+      fontSize: 12,
+      lineHeight: 18,
+      padding: 16,
+    },
     commit: {
       color: colors.violet,
       fontSize: 12,
@@ -406,7 +452,12 @@ export default function TicketDetailScreen() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
-  const [detail, setDetail] = useState<Pick<TicketDetail, "files" | "notes" | "sessions" | "project"> | null>(null);
+  const [detail, setDetail] = useState<Pick<TicketDetail, "files" | "notes" | "sessions" | "diffs" | "project"> | null>(null);
+  const [loadedDiff, setLoadedDiff] = useState<TicketDiffDetail | null>(null);
+  const [loadingDiffId, setLoadingDiffId] = useState<number | null>(null);
+  const [diffError, setDiffError] = useState("");
+  const [textPreview, setTextPreview] = useState<{ title: string; content: string } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const [nextAction, setNextAction] = useState("");
   const [myContext, setMyContext] = useState("");
   const [whyImplementing, setWhyImplementing] = useState("");
@@ -444,6 +495,7 @@ export default function TicketDetailScreen() {
         files: next.files,
         notes: next.notes,
         sessions: next.sessions,
+        diffs: next.diffs,
         project: next.project,
       });
     }).catch((error) => {
@@ -554,6 +606,30 @@ export default function TicketDetailScreen() {
       );
     } finally {
       setSummarizing(false);
+    }
+  };
+  const handleLoadDiff = async (diffId: number) => {
+    if (loadingDiffId === diffId) return;
+    setLoadingDiffId(diffId);
+    setDiffError("");
+    try {
+      setLoadedDiff(await getTicketDiff(ticket.id, diffId));
+    } catch (error) {
+      setDiffError(error instanceof Error ? error.message : "Could not load diff files.");
+    } finally {
+      setLoadingDiffId(null);
+    }
+  };
+  const handlePreviewText = async (url: string, title: string) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Could not load ${title}.`);
+      setTextPreview({ title, content: await response.text() });
+    } catch (error) {
+      setDiffError(error instanceof Error ? error.message : "Could not preview file.");
+    } finally {
+      setLoadingPreview(false);
     }
   };
   const uploadImage = async ({ uri, name, type }: { uri: string; name?: string | null; type?: string | null }) => {
@@ -924,6 +1000,58 @@ export default function TicketDetailScreen() {
             </Text>
           )}
         </Section>
+        {detail?.diffs?.length ? (
+          <Section title="Git changes">
+            {detail.diffs.map((diff) => (
+              <View style={styles.diffCard} key={diff.id}>
+                <Text style={styles.diffTitle}>{diff.file_name}</Text>
+                <Text style={styles.diffMeta}>
+                  {diff.commit_sha || "Commit diff"} · {diff.file_size} bytes
+                </Text>
+                <Pressable
+                  style={styles.diffButton}
+                  onPress={() => handleLoadDiff(diff.id)}
+                  disabled={loadingDiffId === diff.id}
+                >
+                  {loadingDiffId === diff.id ? (
+                    <ActivityIndicator color={colors.green} />
+                  ) : (
+                    <Text style={styles.diffButtonText}>
+                      {loadedDiff?.id === diff.id ? "Reload files" : "Load diff and files"}
+                    </Text>
+                  )}
+                </Pressable>
+                {loadedDiff?.id === diff.id ? (
+                  <View>
+                    <Text style={styles.diffFile}>Diff: {loadedDiff.file_name}</Text>
+                    <Pressable
+                      onPress={() => handlePreviewText(loadedDiff.url, loadedDiff.file_name)}
+                      disabled={loadingPreview}
+                    >
+                      <Text style={styles.diffButtonText}>
+                        {loadingPreview ? "Loading..." : "Preview diff"}
+                      </Text>
+                    </Pressable>
+                    {loadedDiff.files.map((file) => (
+                      <View key={file.id}>
+                        <Text style={styles.diffFile}>
+                          {file.file_path} ({file.file_size} bytes)
+                        </Text>
+                        <Pressable
+                          onPress={() => handlePreviewText(file.url, file.file_path)}
+                          disabled={loadingPreview}
+                        >
+                          <Text style={styles.diffButtonText}>Preview file</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ))}
+            {diffError ? <Text style={styles.summaryError}>{diffError}</Text> : null}
+          </Section>
+        ) : null}
         <View style={styles.actions}>
           <Pressable style={styles.logButton} onPress={() => router.push({ pathname: "/log-progress", params: { ticketId: ticket.id } })}>
             <Ionicons name="create-outline" size={18} color="#fff" /><Text style={styles.logButtonText}>Log progress</Text>
@@ -1001,6 +1129,39 @@ export default function TicketDetailScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+      <Modal
+        visible={textPreview !== null}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setTextPreview(null)}
+      >
+        <SafeAreaView style={styles.codeModal}>
+          <View style={styles.codeHeader}>
+            <Text style={styles.codeTitle} numberOfLines={1}>
+              {textPreview?.title}
+            </Text>
+            <Pressable
+              onPress={() => setTextPreview(null)}
+              style={styles.codeClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close text preview"
+            >
+              <Ionicons name="close" size={24} color={colors.ink} />
+            </Pressable>
+          </View>
+          <ScrollView
+            style={styles.codeScroll}
+            contentContainerStyle={{ flexGrow: 1 }}
+            horizontal
+            showsHorizontalScrollIndicator
+            showsVerticalScrollIndicator
+          >
+            <Text selectable style={styles.codeContent}>
+              {textPreview?.content}
+            </Text>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
       <Modal
         visible={cameraVisible}
