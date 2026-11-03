@@ -209,3 +209,28 @@ export async function generatePendingTicketsSummary(req, res) {
         });
     }
 }
+
+
+// cron will run this function to delete all marked notification every 5 days thereshold
+export async function deleteMarkedNotifications(req, res) {
+    try {
+        const notifications = await prisma.notification.deleteMany({
+            where: {
+                is_read: true,
+            }
+        })
+        if (notifications.count === 0) {
+            return res.status(404).json({ error: "No marked notifications found." });
+        }
+
+        return res.status(200).json({
+            message: `${notifications.count} marked notifications deleted successfully.`,
+        });
+    }
+    catch (error) {
+        console.error("Failed to delete marked notifications:", error.message);
+        return res.status(502).json({
+            error: "Failed to delete notifications.",
+        });
+    }
+}

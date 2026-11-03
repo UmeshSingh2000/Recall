@@ -28,6 +28,8 @@ import {
   markNotificationRead,
 } from "../controllers/notificationController.js";
 import { requireNeonAuth } from "../middleware/requireNeonAuth.js";
+import { deleteMarkedNotifications } from "../controllers/cronController.js";
+import { requireCronSecret } from "../middleware/requireCronSecret.js";
 
 const router = Router();
 const uploadTicketImage = multer({
@@ -48,6 +50,8 @@ const uploadSingleTicketImage = (req, res, next) => {
     return next();
   });
 };
+router.delete('/api/notifications/delete-marked',requireCronSecret, deleteMarkedNotifications);
+
 router.use(requireNeonAuth);
 
 router.get("/api/projects", listProjects);
