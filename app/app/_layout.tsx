@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GitCommitListener } from "../components/GitCommitListener";
+import { FloatingChatButton } from "../components/FloatingChatButton";
 import { OtaUpdateManager } from "../components/OtaUpdateManager";
 import { ThemeProvider, useTheme } from "../components/ThemeProvider";
 import AuthProvider, { useAuth } from "@/components/AuthContext";
@@ -88,6 +89,7 @@ function RootLayout() {
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="(auth)" />
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="chat" options={{ presentation: "card" }} />
                     <Stack.Screen name="ticket/[id]" options={{ presentation: "card" }} />
                     <Stack.Screen name="log/[id]" options={{ presentation: "card" }} />
                     <Stack.Screen name="log-progress" options={{ presentation: "modal" }} />
@@ -166,7 +168,12 @@ function AuthGate({ children}: {children: React.ReactNode}) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {!inAuthGroup && <FloatingChatButton />}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
