@@ -126,7 +126,7 @@ function formatTicket(ticket, diffContents) {
       `- ${session.started_at.toISOString()} to ${session.ended_at?.toISOString() || "ongoing"}: ${session.summary || "(no summary)"}\n  Pause reason: ${session.pause_reason || "(none)"}\n  Next action: ${session.next_action || "(none)"}`,
     ),
     "",
-    "Diffs and diff files:",
+    "Ticket diffs:",
   ];
 
   for (const diff of ticket.ticket_diffs) {
@@ -137,12 +137,6 @@ function formatTicket(ticket, diffContents) {
       `Description: ${diff.description || "(none)"}`,
       diffContents.get(diff.object_key) || "(empty diff)",
     );
-    for (const file of diff.files) {
-      lines.push(
-        `--- Changed file: ${file.file_path} (${file.file_size} bytes) ---`,
-        diffContents.get(file.object_key) || "(empty file)",
-      );
-    }
   }
 
   return lines.join("\n");
@@ -191,11 +185,6 @@ export async function chatWithTickets(req, res) {
         ticket.ticket_diffs.flatMap((diff) => [
           getTicketObjectText(diff.object_key, ticket.id).then((content) =>
             diffContents.set(diff.object_key, content),
-          ),
-          ...diff.files.map((file) =>
-            getTicketObjectText(file.object_key, ticket.id).then((content) =>
-              diffContents.set(file.object_key, content),
-            ),
           ),
         ]),
       ),
