@@ -94,6 +94,20 @@ model Setting {
   @@map("settings")
 }
 
+model ChatSession {
+  id         Int      @id @default(autoincrement())
+  user_id    String
+  title      String
+  preview    String   @default("")
+  ticket_ids Json     @default("[]")
+  messages   Json     @default("[]")
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  @@index([user_id, updated_at])
+  @@map("chat_sessions")
+}
+
 model Ticket {
   id                  Int            @id @default(autoincrement())
   project_id          Int

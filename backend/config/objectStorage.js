@@ -93,6 +93,26 @@ export async function getTicketObjectUrl(objectKey, ticketId) {
   );
 }
 
+export async function getTicketObjectText(objectKey, ticketId) {
+  if (!objectKey.startsWith(`tickets/${ticketId}/`)) {
+    throw new Error("Invalid ticket object location");
+  }
+
+  const response = await s3.send(
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+  );
+  if (!response.Body) return "";
+  if (typeof response.Body.transformToString === "function") {
+    return response.Body.transformToString("utf-8");
+  }
+
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function deleteTicketObject(objectKey, ticketId) {
   if (!objectKey.startsWith(`tickets/${ticketId}/`)) {
     throw new Error("Invalid ticket object location");

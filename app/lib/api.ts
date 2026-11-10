@@ -106,6 +106,117 @@ export async function generateLogSummary(payload: GenerateLogSummaryPayload) {
   return result.summary.trim();
 }
 
+export type ChatSession = {
+  id: string;
+  title: string;
+  preview: string;
+  ticket_ids: number[];
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function streamChatWithTickets(
+  payload: { message: string; ticket_ids: number[] },
+  onChunk: (content: string) => void,
+) {
+  const authToken = await getAuthToken();
+  const response = await fetch(`${BACKEND_URL}/api/chat-tickets`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => null);
+    throw new Error(
+      typeof result?.error === "string"
+        ? result.error
+        : `The chat service responded with ${response.status}.`,
+    );
+  }
+
+  if (!response.body) {
+    throw new Error("The chat service did not provide a response stream.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed = false;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() ?? "";
+      for (const event of events) {
+        const data = event
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("");
+        if (!data) continue;
+        const parsed = JSON.parse(data) as { content?: string; error?: string };
+        if (parsed.error) throw new Error(parsed.error);
+        if (parsed.content) onChunk(parsed.content);
+        if (event.startsWith("event: done")) completed = true;
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      const data = buffer
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("");
+      if (data) {
+        const parsed = JSON.parse(data) as { content?: string; error?: string };
+        if (parsed.error) throw new Error(parsed.error);
+        if (parsed.content) onChunk(parsed.content);
+      }
+    }
+    if (!completed) throw new Error("The chat stream ended unexpectedly.");
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function chatSessionRequest(path: string, method: "GET" | "POST" | "PATCH", body?: object) {
+  const authToken = await getAuthToken();
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + authToken,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(typeof result?.error === "string" ? result.error : "Chat history request failed.");
+  }
+  return result;
+}
+
+export async function listChatSessions() {
+  const result = await chatSessionRequest("/api/chat-sessions", "GET");
+  return result.sessions as ChatSession[];
+}
+
+export async function createChatSession(input: { title: string; ticket_ids?: number[] }) {
+  const result = await chatSessionRequest("/api/chat-sessions", "POST", input);
+  return result.session as ChatSession;
+}
+
+export async function updateChatSession(id: string, input: Partial<Pick<ChatSession, "title" | "preview" | "ticket_ids" | "messages">>) {
+  const result = await chatSessionRequest(`/api/chat-sessions/${id}`, "PATCH", input);
+  return result.session as ChatSession;
+}
+
 const AUTH_TOKEN_KEY = "recall.auth_token";
 
 export async function hasAuthToken() {

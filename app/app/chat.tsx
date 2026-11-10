@@ -1,13 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, Ellipse, Line, RadialGradient, Stop } from "react-native-svg";
 import { useTheme, useThemedStyles } from "../components/ThemeProvider";
 import { radius, spacing } from "../constants/theme";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { fetchTickets } from "../store/workspaceSlice";
+import {
+  createChatSession,
+  listChatSessions,
+  streamChatWithTickets,
+  updateChatSession,
+} from "../lib/api";
 import type { Ticket } from "../types";
 
 const openTicketStatuses = new Set<Ticket["status"]>([
@@ -24,6 +30,15 @@ function statusLabel(status: Ticket["status"]) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatHistoryEntry = {
+  id: string;
+  title: string;
+  preview: string;
+  messages: ChatMessage[];
+  ticket_ids?: number[];
+};
+
 export default function ChatScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -36,15 +51,27 @@ export default function ChatScreen() {
   const [selectedTicketIndex, setSelectedTicketIndex] = useState(0);
   const [isTicketPickerOpen, setIsTicketPickerOpen] = useState(false);
   const [attachedTickets, setAttachedTickets] = useState<Ticket[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatHistoryEntry[]>([]);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const pendingTickets = (ticketsData ?? []).filter((ticket) => openTicketStatuses.has(ticket.status));
   const allTickets = ticketsData ?? [];
   const selectedTicket = pendingTickets[selectedTicketIndex];
   const carouselCardWidth = Math.max(width - spacing.lg * 2, 280);
-  const accent = colors.violet;
+  const accent = colors.green;
+  const historyTranslateX = useRef(new Animated.Value(-width)).current;
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchTickets()).unwrap().catch((error) => {
         console.warn("Unable to load tickets for chat:", error);
+      });
+      listChatSessions().then((sessions) => {
+        setChatHistory(sessions);
+      }).catch((error) => {
+        console.warn("Unable to load chat history:", error);
       });
     }, [dispatch]),
   );
@@ -55,36 +82,50 @@ export default function ChatScreen() {
     }
   }, [pendingTickets.length, selectedTicketIndex]);
 
+  useEffect(() => {
+    if (!isHistoryOpen) return;
+    historyTranslateX.setValue(-width);
+    Animated.timing(historyTranslateX, {
+      toValue: 0,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [historyTranslateX, isHistoryOpen, width]);
+
   const styles = useThemedStyles((colors) => ({
-    safe: { flex: 1, backgroundColor: "#000000" },
+    safe: { flex: 1, backgroundColor: colors.canvas },
     backgroundPattern: { position: "absolute", top: 60, left: 0, right: 0, bottom: 0, opacity: 0.18 },
-    header: { height: 60, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, backgroundColor: "#001000", borderBottomWidth: 1, borderBottomColor: "#173018" },
+    header: { height: 60, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
     headerCopy: { flex: 1 },
     title: { color: colors.ink, fontSize: 16, fontWeight: "800" },
     subtitle: { color: accent, fontSize: 11, fontWeight: "700", marginTop: 3 },
     action: { padding: 8 },
+    menuButton: { padding: 8, marginLeft: 4 },
     content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: 17, paddingBottom: spacing.lg },
+    ticketPanel: { paddingHorizontal: spacing.lg, paddingTop: 17 },
     ticketSection: { marginBottom: 10 },
-    ticket: { flexDirection: "row", alignItems: "center", backgroundColor: "#001000", borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: "#173018", minHeight: 64 },
+    ticket: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, minHeight: 64 },
     ticketCopy: { flex: 1, marginLeft: spacing.md },
     ticketKey: { color: accent, fontSize: 12, fontWeight: "800" },
-    ticketTitle: { color: "#E6E6E6", fontSize: 13, fontWeight: "700", marginTop: 5 },
-    status: { backgroundColor: "#21183A", borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, marginLeft: spacing.sm },
+    ticketTitle: { color: colors.ink, fontSize: 13, fontWeight: "700", marginTop: 5 },
+    status: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, marginLeft: spacing.sm },
     statusText: { color: accent, fontSize: 10, fontWeight: "800" },
     carousel: { marginHorizontal: -spacing.lg },
     carouselContent: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-    carouselEmpty: { backgroundColor: "#001000", borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: "#173018" },
+    carouselEmpty: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.line },
     carouselEmptyText: { color: colors.muted, fontSize: 13, lineHeight: 19 },
     carouselDots: { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 10 },
-    carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#27302A" },
+    carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.line },
     carouselDotActive: { width: 17, backgroundColor: accent },
-    hero: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 50 },
-    assistantIcon: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#001000", borderWidth: 1, borderColor: "#173018", marginBottom: 16 },
-    heroTitle: { color: "#E6E6E6", fontSize: 17, fontWeight: "800" },
-    heroCopy: { color: "#8D9990", fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: 8, maxWidth: 340, paddingHorizontal: 8 },
+    hero: { flex: 1, paddingBottom: 50 },
+    emptyHero: { alignItems: "center", justifyContent: "center" },
+    chatMessages: { alignItems: "stretch", justifyContent: "flex-start", paddingTop: 4 },
+    assistantIcon: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, marginBottom: 16 },
+    heroTitle: { color: colors.ink, fontSize: 17, fontWeight: "800" },
+    heroCopy: { color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: 8, maxWidth: 340, paddingHorizontal: 8 },
     section: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginBottom: 11 },
-    composerBar: { paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 8, backgroundColor: "#001000", borderTopWidth: 1, borderTopColor: "#173018" },
-    composer: { backgroundColor: "#001000", borderRadius: radius.md, borderWidth: 1, borderColor: "#173018", paddingHorizontal: 7, paddingVertical: 7 },
+    composerBar: { paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
+    composer: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 7, paddingVertical: 7 },
     attachment: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.greenSoft, borderRadius: radius.sm, paddingVertical: 5, paddingLeft: 8, paddingRight: 5, marginBottom: 5, maxWidth: "100%" },
     attachmentText: { color: colors.green, fontSize: 11, fontWeight: "700", marginHorizontal: 5, flexShrink: 1 },
     attachmentRemove: { padding: 2 },
@@ -109,7 +150,142 @@ export default function ChatScreen() {
     pickerFooter: { flexDirection: "row", justifyContent: "flex-end", paddingTop: spacing.md },
     pickerDone: { backgroundColor: colors.green, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 11 },
     pickerDoneText: { color: colors.canvas, fontSize: 13, fontWeight: "800" },
+    messageBubble: { maxWidth: "88%", borderRadius: radius.md, padding: 12, marginBottom: 10 },
+    userBubble: { alignSelf: "flex-end", backgroundColor: accent },
+    assistantBubble: { alignSelf: "flex-start", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+    messageText: { color: colors.ink, fontSize: 14, lineHeight: 20 },
+    responseIndicator: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10 },
+    responseIndicatorText: { color: colors.muted, fontSize: 12 },
+    errorText: { color: colors.red, fontSize: 12, marginBottom: 8 },
+    historyOverlay: { flex: 1, flexDirection: "row", backgroundColor: colors.overlay },
+    historyDrawer: { width: "86%", maxWidth: 380, backgroundColor: colors.surface, paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + spacing.lg },
+    historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xl },
+    historyTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+    historySubtitle: { color: colors.muted, fontSize: 12, marginTop: 4 },
+    historyClose: { padding: 6 },
+    newChatButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.green, borderRadius: radius.md, paddingVertical: 12, marginBottom: spacing.lg },
+    newChatText: { color: colors.canvas, fontSize: 13, fontWeight: "800" },
+    historyList: { flex: 1 },
+    historyItem: { flexDirection: "row", alignItems: "center", paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.line },
+    historyItemCopy: { flex: 1, marginLeft: spacing.md },
+    historyItemTitle: { color: colors.ink, fontSize: 14, fontWeight: "700" },
+    historyItemPreview: { color: colors.muted, fontSize: 12, marginTop: 4 },
+    historyDate: { color: colors.muted, fontSize: 10, marginTop: 6 },
+    historyEmpty: { color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: "center", paddingTop: spacing.xl },
   }));
+
+  const startNewChat = async () => {
+    try {
+      const ticketIds = [selectedTicket, ...attachedTickets]
+        .filter((ticket): ticket is Ticket => Boolean(ticket))
+        .map((ticket) => ticket.id)
+        .filter((id, index, ids) => ids.indexOf(id) === index);
+      const session = await createChatSession({ title: "New chat", ticket_ids: ticketIds });
+      setChatHistory((current) => [session, ...current]);
+      setActiveHistoryId(session.id);
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "Unable to start a new chat.");
+      return;
+    }
+    setMessages([]);
+    setError(null);
+    setIsHistoryOpen(false);
+  };
+
+  const openHistory = (entry: ChatHistoryEntry) => {
+    setMessages(entry.messages);
+    setActiveHistoryId(entry.id);
+    setError(null);
+    setIsHistoryOpen(false);
+  };
+
+  const sendMessage = async () => {
+    const trimmed = message.trim();
+    const ticketIds = [selectedTicket, ...attachedTickets]
+      .filter((ticket): ticket is Ticket => Boolean(ticket))
+      .map((ticket) => ticket.id)
+      .filter((id, index, ids) => ids.indexOf(id) === index);
+    if (!trimmed || !ticketIds.length || isSending) return;
+    let historyId = activeHistoryId;
+    if (!historyId) {
+      try {
+        const session = await createChatSession({ title: trimmed, ticket_ids: ticketIds });
+        historyId = session.id;
+        setActiveHistoryId(historyId);
+        setChatHistory((current) => [session, ...current]);
+      } catch (createError) {
+        setError(createError instanceof Error ? createError.message : "Unable to create chat.");
+        return;
+      }
+    }
+    setMessage("");
+    setError(null);
+    setMessages((current) => [...current, { role: "user", content: trimmed }]);
+    const sessionId = historyId;
+    setChatHistory((current) => {
+      const existing = current.find((entry) => entry.id === sessionId);
+      if (existing) {
+        return current.map((entry) => entry.id === sessionId
+          ? {
+            ...entry,
+            messages: [...entry.messages, { role: "user", content: trimmed } as ChatMessage],
+          }
+          : entry);
+      }
+      return [
+        {
+          id: historyId,
+          title: trimmed,
+          preview: trimmed,
+          messages: [{ role: "user", content: trimmed } as ChatMessage],
+        },
+        ...current,
+      ];
+    });
+    setIsSending(true);
+    try {
+      let responseContent = "";
+      await streamChatWithTickets(
+        { message: trimmed, ticket_ids: ticketIds },
+        (content) => {
+          responseContent += content;
+          setMessages((current) => {
+            const last = current[current.length - 1];
+            if (!last || last.role !== "assistant") {
+              return [...current, { role: "assistant", content }];
+            }
+            return [
+              ...current.slice(0, -1),
+              { ...last, content: last.content + content },
+            ];
+          });
+          setChatHistory((current) => current.map((entry) => {
+            if (entry.id !== sessionId) return entry;
+            const last = entry.messages[entry.messages.length - 1];
+            const nextMessages: ChatMessage[] = last?.role === "assistant"
+              ? [...entry.messages.slice(0, -1), { ...last, content: last.content + content }]
+              : [...entry.messages, { role: "assistant", content } as ChatMessage];
+            return { ...entry, preview: `${entry.preview}${content}`, messages: nextMessages };
+          }));
+        },
+      );
+      const savedMessages: ChatMessage[] = [
+        ...messages,
+        { role: "user", content: trimmed },
+        { role: "assistant", content: responseContent },
+      ];
+      const updated = await updateChatSession(sessionId, {
+        preview: responseContent || trimmed,
+        ticket_ids: ticketIds,
+        messages: savedMessages,
+      });
+      setChatHistory((current) => current.map((entry) => entry.id === sessionId ? updated : entry));
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "Unable to send message.");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
@@ -119,7 +295,7 @@ export default function ChatScreen() {
             <RadialGradient id="chatBackgroundGlow" cx="50%" cy="50%" rx="72%" ry="65%">
               <Stop offset="0" stopColor={accent} stopOpacity="0.15" />
               <Stop offset="0.58" stopColor={colors.green} stopOpacity="0.055" />
-              <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+              <Stop offset="1" stopColor={colors.canvas} stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Ellipse cx="200" cy="365" rx="300" ry="410" fill="url(#chatBackgroundGlow)" />
@@ -137,13 +313,15 @@ export default function ChatScreen() {
           <Text style={styles.subtitle}>{selectedTicket ? `${selectedTicket.ticket_key} • ${selectedTicket.project_name}` : "Workspace assistant"}</Text>
         </View>
         <Pressable style={styles.action} accessibilityLabel="Open ticket"><Ionicons name="open-outline" size={16} color={colors.muted} /></Pressable>
-        <Pressable style={styles.action} accessibilityLabel="More options"><Ionicons name="ellipsis-vertical" size={16} color={colors.muted} /></Pressable>
+        <Pressable style={styles.menuButton} onPress={() => setIsHistoryOpen(true)} accessibilityLabel="Open chat history">
+          <Ionicons name="menu-outline" size={23} color={colors.ink} />
+        </Pressable>
       </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <View style={styles.ticketPanel}>
         <View style={styles.ticketSection}>
           <Text style={styles.section}>PENDING TICKETS</Text>
           {ticketsLoading && ticketsData === null ? (
@@ -189,10 +367,24 @@ export default function ChatScreen() {
             <View style={styles.carouselEmpty}><Text style={styles.carouselEmptyText}>No pending tickets. You’re all caught up.</Text></View>
           )}
         </View>
-        <View style={styles.hero}>
-          <View style={styles.assistantIcon}><Ionicons name="person-outline" size={19} color={accent} /></View>
-          <Text style={styles.heroTitle}>{selectedTicket ? `Ready to assist with ${selectedTicket.ticket_key}` : "Ready to assist"}</Text>
-          <Text style={styles.heroCopy}>{selectedTicket ? `Ask about ${selectedTicket.title}, its progress, or the next step.` : "Choose a pending ticket to start with its workspace context."}</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={[styles.hero, messages.length ? styles.chatMessages : styles.emptyHero]}>
+          {!messages.length ? <>
+            <View style={styles.assistantIcon}><Ionicons name="person-outline" size={19} color={accent} /></View>
+            <Text style={styles.heroTitle}>{selectedTicket ? `Ready to assist with ${selectedTicket.ticket_key}` : "Ready to assist"}</Text>
+            <Text style={styles.heroCopy}>{selectedTicket ? `Ask about ${selectedTicket.title}, its progress, or the next step.` : "Choose a pending ticket to start with its workspace context."}</Text>
+          </> : messages.map((chatMessage, index) => (
+            <View key={`${chatMessage.role}-${index}`} style={[styles.messageBubble, chatMessage.role === "user" ? styles.userBubble : styles.assistantBubble]}>
+              <Text style={styles.messageText}>{chatMessage.content}</Text>
+            </View>
+          ))}
+          {isSending ? (
+            <View style={styles.responseIndicator} accessibilityLabel="AI is responding">
+              <ActivityIndicator size="small" color={accent} />
+              <Text style={styles.responseIndicatorText}>AI is responding...</Text>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
       <View style={styles.composerBar}>
@@ -212,11 +404,55 @@ export default function ChatScreen() {
             <Pressable style={styles.attachButton} onPress={() => setIsTicketPickerOpen(true)} accessibilityLabel="Attach a ticket">
               <Ionicons name="add" size={23} color={accent} />
             </Pressable>
-            <TextInput value={message} onChangeText={setMessage} placeholder={selectedTicket ? `Ask anything about ${selectedTicket.ticket_key}...` : "Ask anything about your workspace..."} placeholderTextColor={colors.muted} style={styles.input} />
-            <Pressable style={styles.send} accessibilityLabel="Send message"><Ionicons name="arrow-up" size={16} color="#17131F" /></Pressable>
+            <TextInput value={message} onChangeText={setMessage} placeholder={selectedTicket ? `Ask anything about ${selectedTicket.ticket_key}...` : "Ask anything about your workspace..."} placeholderTextColor={colors.muted} style={styles.input} editable={!isSending} onSubmitEditing={sendMessage} />
+            <Pressable style={[styles.send, isSending && { opacity: 0.6 }]} accessibilityLabel="Send message" onPress={sendMessage} disabled={isSending}>
+              {isSending ? <ActivityIndicator size="small" color={colors.canvas} /> : <Ionicons name="arrow-up" size={16} color={colors.canvas} />}
+            </Pressable>
           </View>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </View>
+      <Modal
+        visible={isHistoryOpen}
+        transparent
+        animationType="none"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        onRequestClose={() => setIsHistoryOpen(false)}
+      >
+        <Pressable style={styles.historyOverlay} onPress={() => setIsHistoryOpen(false)}>
+          <Animated.View style={[styles.historyDrawer, { transform: [{ translateX: historyTranslateX }] }]} onStartShouldSetResponder={() => true}>
+            <View style={styles.historyHeader}>
+              <View>
+                <Text style={styles.historyTitle}>Chat history</Text>
+                <Text style={styles.historySubtitle}>Pick up where you left off</Text>
+              </View>
+              <Pressable style={styles.historyClose} onPress={() => setIsHistoryOpen(false)} accessibilityLabel="Close chat history">
+                <Ionicons name="close" size={22} color={colors.ink} />
+              </Pressable>
+            </View>
+            <Pressable style={styles.newChatButton} onPress={startNewChat} accessibilityLabel="Start a new chat">
+              <Ionicons name="add" size={18} color={colors.canvas} />
+              <Text style={styles.newChatText}>New chat</Text>
+            </Pressable>
+            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+              {chatHistory.length ? chatHistory.map((entry) => (
+                <Pressable key={entry.id} style={styles.historyItem} onPress={() => openHistory(entry)} accessibilityRole="button">
+                  <Ionicons name="chatbubble-ellipses-outline" size={19} color={accent} />
+                  <View style={styles.historyItemCopy}>
+                    <Text style={styles.historyItemTitle} numberOfLines={1}>{entry.title}</Text>
+                    <Text style={styles.historyItemPreview} numberOfLines={2}>{entry.preview}</Text>
+                    <Text style={styles.historyDate}>Recent chat</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                </Pressable>
+              )) : (
+                <Text style={styles.historyEmpty}>Your previous chats will appear here.</Text>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </Pressable>
+      </Modal>
       <Modal
         visible={isTicketPickerOpen}
         transparent

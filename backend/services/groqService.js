@@ -9,3 +9,12 @@ export async function generateWithGroq(messages) {
 
   return completion.choices[0]?.message?.content ?? "";
 }
+
+export async function streamWithGroq(messages) {
+  return groq.chat.completions.create({
+    model: "openai/gpt-oss-120b",
+    messages,
+    temperature: 0.2,
+    stream: true,
+  });
+}
